@@ -1,0 +1,3 @@
+/home/parallels/Project/Lanes/CMakeFiles/rebuild_cache.dir
+/home/parallels/Project/Lanes/CMakeFiles/edit_cache.dir
+/home/parallels/Project/Lanes/CMakeFiles/main.dir
