@@ -1,3 +1,0 @@
-/home/parallels/Project/Test/CMakeFiles/edit_cache.dir
-/home/parallels/Project/Test/CMakeFiles/rebuild_cache.dir
-/home/parallels/Project/Test/CMakeFiles/Test.dir
