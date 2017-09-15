@@ -61,8 +61,23 @@ for(;;){
   wip = src;
   cvtColor( wip, wip, CV_BGR2GRAY );
 
-  //cv::threshold(wip, wip, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
-  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,25,CV_THRESH_OTSU);
+  for ( int i = 1; i < blur_kernel; i = i + 2 ){
+    GaussianBlur( wip, wip, Size( i, i ), 0, 0 );
+  }
+
+  //Canny( wip, wip, lowThreshold, lowThreshold*ratio, canny_kernel );
+
+
+  //RGB
+  //Color Filtering
+  Mat white_mask;
+  //White Filter
+  inRange(wip, Scalar(150, 150, 150), Scalar(255, 255, 255), wip);
+  //cvtColor( wip, wip, CV_BGR2GRAY );
+
+  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
+  //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
 //Display Image
 char* window_1 = "Result";
