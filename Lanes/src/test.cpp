@@ -19,7 +19,6 @@ Vec4i leftLaneAvg = Vec4i(0,0,0,0);
 int n_lines_vanishing = 5;
 
 
-
 float movingAverage(float avg, float new_sample){
   int N = 20;
   if(avg == 0.0){
@@ -182,7 +181,7 @@ for( size_t i = 0; i < lines.size(); i++ ){
   int y2 = l[3];
 
   if(pos_min ==0){
-    
+
   }
 
   line( detected_lines, Point(x1, y1), Point(x2, y2), Scalar(0,0,255), 12); //regularized right line (white)
