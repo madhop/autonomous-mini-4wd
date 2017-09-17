@@ -1,5 +1,0 @@
-cmake_minimum_required(VERSION 2.8)
-project( Lanes )
-find_package( OpenCV REQUIRED )
-add_executable( curve_fitting curve_fitting.cpp )
-target_link_libraries( curve_fitting ${OpenCV_LIBS} )
