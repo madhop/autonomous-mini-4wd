@@ -151,3 +151,19 @@ Lanes/test/test
 Lanes/data/vid/2_comp\.mp4
 
 Lanes/src/test\.cpp
+
+Lanes/build/CMakeFiles/
+
+Lanes/build/cmake_install\.cmake
+
+Lanes/build/CMakeCache\.txt
+
+Lanes/build/curve_fitting
+
+Lanes/build/hough_lsd
+
+Lanes/build/Makefile
+
+Lanes/build/out\.avi
+
+Lanes/build/test

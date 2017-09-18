@@ -68,9 +68,35 @@ for(;;){
   //Canny( wip, wip, lowThreshold, lowThreshold*ratio, canny_kernel );
 
 
-  //RGB
+  //Perspective Transform
+  Point2f inPoints[4];
+  inPoints[0] = Point2f( 0, height );
+  inPoints[1] = Point2f( width/2-width/8, height/2+height/6);
+  inPoints[2] = Point2f( width/2+width/8, height/2+height/6);
+  inPoints[3] = Point2f( width, height);
+
+  Point2f outPoints[4];
+  outPoints[0] = Point2f( 0,height);
+  outPoints[1] = Point2f( 0, 0);
+  outPoints[2] = Point2f( width, 0);
+  outPoints[3] = Point2f( width, height);
+
+  // Set the lambda matrix the same type and size as input
+  Mat lambda = Mat::zeros( width, height, src.type() );
+
+  // Get the Perspective Transform Matrix i.e. lambda
+  lambda = getPerspectiveTransform( inPoints, outPoints );
+  // Apply the Perspective Transform just found to the src image
+  warpPerspective(wip,wip,lambda,wip.size() );
+
+  //inverse
+  /*
+  // Get the Perspective Transform Matrix i.e. lambda
+  lambda = getPerspectiveTransform( outPoints, inPoints );
+  // Apply the Perspective Transform just found to the src image
+  warpPerspective(wip,wip,lambda,wip.size() );
+  */
   //Color Filtering
-  Mat white_mask;
   //White Filter
   inRange(wip, Scalar(150, 150, 150), Scalar(255, 255, 255), wip);
   //cvtColor( wip, wip, CV_BGR2GRAY );
@@ -79,14 +105,45 @@ for(;;){
   //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
+
+  //Histogram
+int histogram[width];
+int max = 0;
+for(int i = 0; i<width; i++){
+  int sum = 0;
+  for(int j = 0; j<height; j++){
+    Scalar intensity = wip.at<uchar>(j, i);
+    //cout << intensity.val[0] << endl;
+    if(intensity.val[0] == 255){
+      sum++;
+    }
+    histogram[i] = sum;
+    if(sum > max){
+      max = sum;
+    }
+  }
+}
+Mat hist =  Mat::zeros( max, width, wip.type() );
+
+for(int i = 0; i<width;i++){
+  hist.at<uchar>(max - histogram[i] - 1, i) = 255;
+  //cout << max- histogram[i] << endl;
+}
+
 //Display Image
 char* window_1 = "Result";
 namedWindow( window_1, WINDOW_NORMAL );
 cvResizeWindow(window_1, 800, 500);
 imshow( window_1, wip );
 
-//waitKey(0);
-if(waitKey(30) >= 0) break;
+char* window_2 = "Histogram";
+namedWindow( window_2, WINDOW_NORMAL );
+cvResizeWindow(window_2, 800, 500);
+imshow( window_2, hist );
+
+
+waitKey(0);
+//if(waitKey(30) >= 0) break;
 //outputVideo << src;
 
 }
