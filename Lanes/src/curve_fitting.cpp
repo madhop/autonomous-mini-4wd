@@ -125,6 +125,7 @@ for(int i = 0; i<width; i++){
 }
 Mat hist =  Mat::zeros( max, width, wip.type() );
 
+
 for(int i = 0; i<width;i++){
   hist.at<uchar>(max - histogram[i] - 1, i) = 255;
   //cout << max- histogram[i] << endl;
