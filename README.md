@@ -3,7 +3,7 @@
 OpenCV installation guide: http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
 Example video data:
-https://mega.nz/#!Nm4kCBzZ!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
+https://mega.nz/#!BuoF0bqT!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
 
 -go to folder Lanes/build
 -execute the command "cmake ."
