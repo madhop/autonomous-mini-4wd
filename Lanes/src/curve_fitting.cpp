@@ -142,6 +142,7 @@ cvResizeWindow(window_2, 800, 500);
 imshow( window_2, hist );
 
 
+
 waitKey(0);
 //if(waitKey(30) >= 0) break;
 //outputVideo << src;
