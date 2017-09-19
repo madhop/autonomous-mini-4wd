@@ -17,4 +17,4 @@ Up to now the algorithm provides:
 - Adaptive binary thresholding
 
 
-* For the time being the perspective transform points are calibrated with respect to the video "challenge.mp4"
+*For the time being the perspective transform points are calibrated with respect to the video "challenge.mp4"
