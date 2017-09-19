@@ -36,13 +36,13 @@ int main( int argc, char** argv ){
   if(!cap.isOpened()){  // check if we succeeded
     return -1;
   }
-  VideoWriter outputVideo;
-  //outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
+  /*VideoWriter outputVideo;
+  outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
   if (!outputVideo.isOpened())
   {
     cout  << "Could not open the output video" << endl;
     return -1;
-  }
+  }*/
   /*
   //Load image
   src = imread( argv[1] ); /// Load an image
@@ -105,7 +105,7 @@ for(;;){
   //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
-
+/*
   //Histogram
 int histogram[width];
 int max = 0;
@@ -131,21 +131,22 @@ for(int i = 0; i<width;i++){
   //cout << max- histogram[i] << endl;
 }
 
+
+
+char* window_2 = "Histogram";
+namedWindow( window_2, WINDOW_NORMAL );
+cvResizeWindow(window_2, 800, 500);
+imshow( window_2, hist );
+*/
 //Display Image
 char* window_1 = "Result";
 namedWindow( window_1, WINDOW_NORMAL );
 cvResizeWindow(window_1, 800, 500);
 imshow( window_1, wip );
 
-char* window_2 = "Histogram";
-namedWindow( window_2, WINDOW_NORMAL );
-cvResizeWindow(window_2, 800, 500);
-imshow( window_2, hist );
 
-
-
-waitKey(0);
-//if(waitKey(30) >= 0) break;
+//waitKey(0);
+if(waitKey(30) >= 0) break;
 //outputVideo << src;
 
 }
