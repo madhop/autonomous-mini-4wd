@@ -19,6 +19,8 @@ Vec4i leftLaneAvg = Vec4i(0,0,0,0);
 
 
 
+
+
 float movingAverage(float avg, float new_sample){
   int N = 20;
   if(avg == 0.0){
@@ -36,13 +38,13 @@ int main( int argc, char** argv ){
   if(!cap.isOpened()){  // check if we succeeded
     return -1;
   }
-  /*VideoWriter outputVideo;
+  VideoWriter outputVideo;
   outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
   if (!outputVideo.isOpened())
   {
     cout  << "Could not open the output video" << endl;
     return -1;
-  }*/
+  }
   /*
   //Load image
   src = imread( argv[1] ); /// Load an image
@@ -82,7 +84,7 @@ for(;;){
   outPoints[3] = Point2f( width, height);
 
   // Set the lambda matrix the same type and size as input
-  Mat lambda = Mat::zeros( width, height, src.type() );
+  Mat lambda = Mat::zeros( height, width , src.type() );
 
   // Get the Perspective Transform Matrix i.e. lambda
   lambda = getPerspectiveTransform( inPoints, outPoints );
@@ -105,48 +107,170 @@ for(;;){
   //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
-/*
-  //Histogram
-int histogram[width];
-int max = 0;
-for(int i = 0; i<width; i++){
-  int sum = 0;
-  for(int j = 0; j<height; j++){
-    Scalar intensity = wip.at<uchar>(j, i);
-    //cout << intensity.val[0] << endl;
-    if(intensity.val[0] == 255){
-      sum++;
-    }
-    histogram[i] = sum;
-    if(sum > max){
-      max = sum;
+
+  //Compute Histogram
+  int histogram[width];
+  int max = 0;
+  for(int i = 0; i<width; i++){
+    int sum = 0;
+    for(int j = 0; j<height; j++){
+      Scalar intensity = wip.at<uchar>(j, i);
+      //cout << intensity.val[0] << endl;
+      if(intensity.val[0] == 255){
+        sum++;
+      }
+      histogram[i] = sum;
+      if(sum > max){
+        max = sum;
+      }
     }
   }
-}
-Mat hist =  Mat::zeros( max, width, wip.type() );
+
+  //Find max left and min left
+  //the loop could be included in the computation of the
+  //histogram but anyway later on we will change this with Gaussian Fitting
+  //First half
+  int leftMax = 0;
+  int leftMaxPos = 0;
+  for(int i = 0; i < width/2; i++){
+    if(histogram[i] > leftMax){
+      leftMax++;
+      leftMaxPos = i;
+    }
+  }
+  int rightMax = 0;
+  int rightMaxPos = 0;
+  //Second half
+  for(int i = width/2; i < width; i++){
+    if(histogram[i] > leftMax){
+      rightMax++;
+      rightMaxPos = i;
+    }
+  }
 
 
-for(int i = 0; i<width;i++){
+  /*
+  //Display Histogram
+  Mat hist =  Mat::zeros( max, width, wip.type() );
+
+  for(int i = 0; i<width;i++){
   hist.at<uchar>(max - histogram[i] - 1, i) = 255;
   //cout << max- histogram[i] << endl;
 }
-
-
 
 char* window_2 = "Histogram";
 namedWindow( window_2, WINDOW_NORMAL );
 cvResizeWindow(window_2, 800, 500);
 imshow( window_2, hist );
 */
+
+//Barycenter computation
+//Mat rectangles = Mat::zeros( height, width, src.type() );
+Mat rectangles = wip;
+cvtColor( rectangles, rectangles, CV_GRAY2BGR );
+int rect_width = width/10;
+int rect_offset = 0;
+int n_rect = 10;
+int rect_height = (height - rect_offset)/n_rect;
+Scalar rect_color = Scalar(0,0,255);
+int rect_thickness = 2;
+//Create First rectangles
+Point lr1 = Point(leftMaxPos - rect_width/2, height - rect_offset - 0*rect_height);
+Point lr2 = Point(leftMaxPos - rect_width/2, height - rect_offset - (0+1)*rect_height);
+Point lr3 = Point(leftMaxPos + rect_width/2, height - rect_offset - (0+1)*rect_height);
+Point lr4 = Point(leftMaxPos + rect_width/2, height - rect_offset - 0*rect_height);
+line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
+line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
+line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
+line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
+
+/*
+Mat test = Mat::zeros( height, width, src.type() );
+int barY = 0;
+int yWeight = 0;
+for(int i = height; i > 0; i--){
+  int weight = 0;
+  for(int j = 0; j < width; j++){
+    int intensity = test.at<uchar>(i, j);
+    if(intensity == 0){
+      weight ++;
+      yWeight++;
+    }
+  }
+  barY += i*weight;
+}
+barY /= yWeight;
+circle( test, Point(20,barY), 5, Scalar( 0, 0, 255 ),  3, 3 );
+char* window_3 = "Test";
+namedWindow( window_3, WINDOW_NORMAL );
+cvResizeWindow(window_3, 800, 500);
+imshow( window_3, test );
+*/
+
+int barY = 0;
+int yWeight = 0;
+for(int i = lr1.y; i > lr2.y; i--){
+  int weight = 0;
+  for(int j = lr1.x; j < lr4.x; j++){
+    int intensity = wip.at<uchar>(i, j);
+    if(intensity == 255){
+      weight ++;
+      yWeight++;
+    }
+  }
+  barY += i*weight;
+}
+if(barY!=0){
+  barY /= yWeight;
+}
+int barX = 0;
+int xWeight = 0;
+for(int j = lr1.x; j < lr4.x; j++){
+  int weight = 0;
+  for(int i = lr1.y; i > lr2.y; i--){
+    int intensity = wip.at<uchar>(i, j);
+    if(intensity == 255){
+      weight ++;
+      xWeight++;
+    }
+  }
+  barX += j*weight;
+}
+if(xWeight!=0){
+  barX /= xWeight;
+}
+
+
+circle( rectangles, Point(barX,barY), 5, Scalar( 0, 0, 255 ),  3, 3 );
+
+/*
+for(int i=0;i<n_rect;i++){
+  Point lr1 = Point(leftMaxPos - rect_width/2, height - rect_offset - i*rect_height);
+  Point lr2 = Point(leftMaxPos - rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point lr3 = Point(leftMaxPos + rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point lr4 = Point(leftMaxPos + rect_width/2, height - rect_offset - i*rect_height);
+  line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
+  line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
+  line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
+  line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
+}
+*/
+//cvtColor( wip, wip, CV_GRAY2BGR );
+//addWeighted( rectangles, 1, wip, 0, 0.0, rectangles);
+//bitwise_or(wip,rectangles,rectangles);
+
 //Display Image
 char* window_1 = "Result";
 namedWindow( window_1, WINDOW_NORMAL );
 cvResizeWindow(window_1, 800, 500);
 imshow( window_1, wip );
+char* window_2 = "Rectangles";
+namedWindow( window_2, WINDOW_NORMAL );
+cvResizeWindow(window_2, 800, 500);
+imshow( window_2, rectangles );
 
-
-//waitKey(0);
-if(waitKey(30) >= 0) break;
+waitKey(0);
+//if(waitKey(30) >= 0) break;
 //outputVideo << src;
 
 }
