@@ -174,87 +174,109 @@ int n_rect = 10;
 int rect_height = (height - rect_offset)/n_rect;
 Scalar rect_color = Scalar(0,0,255);
 int rect_thickness = 2;
-//Create First rectangles
-Point lr1 = Point(leftMaxPos - rect_width/2, height - rect_offset - 0*rect_height);
-Point lr2 = Point(leftMaxPos - rect_width/2, height - rect_offset - (0+1)*rect_height);
-Point lr3 = Point(leftMaxPos + rect_width/2, height - rect_offset - (0+1)*rect_height);
-Point lr4 = Point(leftMaxPos + rect_width/2, height - rect_offset - 0*rect_height);
-line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
-line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
-line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
-line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
-
-/*
-Mat test = Mat::zeros( height, width, src.type() );
-int barY = 0;
-int yWeight = 0;
-for(int i = height; i > 0; i--){
-  int weight = 0;
-  for(int j = 0; j < width; j++){
-    int intensity = test.at<uchar>(i, j);
-    if(intensity == 0){
-      weight ++;
-      yWeight++;
-    }
-  }
-  barY += i*weight;
-}
-barY /= yWeight;
-circle( test, Point(20,barY), 5, Scalar( 0, 0, 255 ),  3, 3 );
-char* window_3 = "Test";
-namedWindow( window_3, WINDOW_NORMAL );
-cvResizeWindow(window_3, 800, 500);
-imshow( window_3, test );
-*/
-
-int barY = 0;
-int yWeight = 0;
-for(int i = lr1.y; i > lr2.y; i--){
-  int weight = 0;
-  for(int j = lr1.x; j < lr4.x; j++){
-    int intensity = wip.at<uchar>(i, j);
-    if(intensity == 255){
-      weight ++;
-      yWeight++;
-    }
-  }
-  barY += i*weight;
-}
-if(barY!=0){
-  barY /= yWeight;
-}
-int barX = 0;
-int xWeight = 0;
-for(int j = lr1.x; j < lr4.x; j++){
-  int weight = 0;
-  for(int i = lr1.y; i > lr2.y; i--){
-    int intensity = wip.at<uchar>(i, j);
-    if(intensity == 255){
-      weight ++;
-      xWeight++;
-    }
-  }
-  barX += j*weight;
-}
-if(xWeight!=0){
-  barX /= xWeight;
-}
 
 
-circle( rectangles, Point(barX,barY), 5, Scalar( 0, 0, 255 ),  3, 3 );
-
-/*
+int leftBarX = leftMaxPos;
+int leftBarY = height - rect_offset;
+int rightBarX = rightMaxPos;
+int rightBarY = height - rect_offset;
 for(int i=0;i<n_rect;i++){
-  Point lr1 = Point(leftMaxPos - rect_width/2, height - rect_offset - i*rect_height);
-  Point lr2 = Point(leftMaxPos - rect_width/2, height - rect_offset - (i+1)*rect_height);
-  Point lr3 = Point(leftMaxPos + rect_width/2, height - rect_offset - (i+1)*rect_height);
-  Point lr4 = Point(leftMaxPos + rect_width/2, height - rect_offset - i*rect_height);
+  cout << leftBarX << endl;
+  //Compute left rectangle ... per adesso non usiamo la y del baricentro ma costruiamo il rettangolo a partire dal tetto di quello sotto
+  Point lr1 = Point(leftBarX - rect_width/2, height - rect_offset - i*rect_height);
+  Point lr2 = Point(leftBarX - rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point lr3 = Point(leftBarX + rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point lr4 = Point(leftBarX + rect_width/2, height - rect_offset - i*rect_height);
+  //Compute right rectangle
+  Point rr1 = Point(rightBarX - rect_width/2, height - rect_offset - i*rect_height);
+  Point rr2 = Point(rightBarX - rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point rr3 = Point(rightBarX + rect_width/2, height - rect_offset - (i+1)*rect_height);
+  Point rr4 = Point(rightBarX + rect_width/2, height - rect_offset - i*rect_height);
+
+
+  //Draw left rectangle
   line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
   line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
   line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
   line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
+  //Draw right rectangle
+  line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
+  line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
+  line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
+  line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
+
+
+
+  //Compute left barycenter
+  int yWeight = 0;
+  for(int j = lr1.y; j > lr2.y; j--){
+    int weight = 0;
+    for(int k = lr1.x; k < lr4.x; k++){
+      int intensity = wip.at<uchar>(j, k);
+      if(intensity == 255){
+        weight ++;
+        yWeight++;
+      }
+    }
+    leftBarY += j*weight;
+  }
+  if(yWeight!=0){
+    leftBarY /= yWeight;
+  }
+  int xWeight = 0;
+  for(int j = lr1.x; j < lr4.x; j++){
+    int weight = 0;
+    for(int k = lr1.y; k > lr2.y; k--){
+      int intensity = wip.at<uchar>(k, j);
+      if(intensity == 255){
+        weight ++;
+        xWeight++;
+      }
+    }
+    leftBarX += j*weight;
+  }
+  if(xWeight!=0){
+    leftBarX /= xWeight;
+  }
+
+  //Draw left barycenter
+  circle( rectangles, Point(leftBarX,leftBarY), 5, Scalar( 0, 0, 255 ),  3, 3 );
+
+  //Compute right barycenter
+  yWeight = 0;
+  for(int j = rr1.y; j > rr2.y; j--){
+    int weight = 0;
+    for(int k = rr1.x; k < rr4.x; k++){
+      int intensity = wip.at<uchar>(j, k);
+      if(intensity == 255){
+        weight ++;
+        yWeight++;
+      }
+    }
+    rightBarY += j*weight;
+  }
+  if(yWeight!=0){
+    rightBarY /= yWeight;
+  }
+  xWeight = 0;
+  for(int j = rr1.x; j < rr4.x; j++){
+    int weight = 0;
+    for(int k = rr1.y; k > rr2.y; k--){
+      int intensity = wip.at<uchar>(k, j);
+      if(intensity == 255){
+        weight ++;
+        xWeight++;
+      }
+    }
+    rightBarX += j*weight;
+  }
+  if(xWeight!=0){
+    rightBarX /= xWeight;
+  }
+  circle( rectangles, Point(rightBarX,rightBarY), 5, Scalar( 0, 0, 255 ),  3, 3 );
+
 }
-*/
+
 //cvtColor( wip, wip, CV_GRAY2BGR );
 //addWeighted( rectangles, 1, wip, 0, 0.0, rectangles);
 //bitwise_or(wip,rectangles,rectangles);
