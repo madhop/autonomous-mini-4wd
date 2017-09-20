@@ -282,8 +282,16 @@ for(int i=0;i<n_rect;i++){
 
 }
 
-//
+//LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
+// y = beta_2*x^2 + beta_1*x + beta_0
+Mat rightX = Mat::zeros( rightBarycenters.size(), 3 , 0 );
+Mat leftX = Mat::zeros( leftBarycenters.size(), 3 , 0 );
 
+Mat rightBeta = Mat::zeros( 3, 1 , 0 );
+Mat leftBeta = Mat::zeros( 3, 1 , 0 );
+
+Mat rightY = Mat::zeros( 3, 1 , 0 );
+Mat leftY = Mat::zeros( 3, 1 , 0 );
 
 //cvtColor( wip, wip, CV_GRAY2BGR );
 //addWeighted( rectangles, 1, wip, 0, 0.0, rectangles);
