@@ -19,8 +19,6 @@ Vec4i leftLaneAvg = Vec4i(0,0,0,0);
 
 
 
-
-
 float movingAverage(float avg, float new_sample){
   int N = 20;
   if(avg == 0.0){
@@ -284,18 +282,67 @@ for(int i=0;i<n_rect;i++){
 
 //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
 // y = beta_2*x^2 + beta_1*x + beta_0
-Mat rightX = Mat::zeros( rightBarycenters.size(), 3 , 0 );
-Mat leftX = Mat::zeros( leftBarycenters.size(), 3 , 0 );
+Mat rightX = Mat::zeros( rightBarycenters.size(), 3 , CV_32F );
+Mat leftX = Mat::zeros( leftBarycenters.size(), 3 , CV_32F );
+Mat rightY = Mat::zeros( rightBarycenters.size(), 1 , CV_32F );
+Mat leftY = Mat::zeros( leftBarycenters.size(), 1 , CV_32F );
+Mat rightBeta; //= Mat::zeros( 3, 1 , CV_32F );
+Mat leftBeta; //= Mat::zeros( 3, 1 , CV_32F );
 
-Mat rightBeta = Mat::zeros( 3, 1 , 0 );
-Mat leftBeta = Mat::zeros( 3, 1 , 0 );
+//Left
+//X
+for(int i = 0; i < leftX.rows; i++){
+  for(int j = 0; j < leftX.cols; j++){
+     leftX.at<float>(i,j) = pow(leftBarycenters[i].x,j);
+  }
+}
 
-Mat rightY = Mat::zeros( 3, 1 , 0 );
-Mat leftY = Mat::zeros( 3, 1 , 0 );
+//Y
+for(int i = 0; i < leftY.rows; i++){
+    leftY.at<float>(i,0) = leftBarycenters[i].y;
+}
+//Right
+//X
+for(int i = 0; i < rightX.rows; i++){
+  for(int j = 0; j < rightX.cols; j++){
+     rightX.at<float>(i,j) = pow(rightBarycenters[i].x,j);
+  }
+}
+//Y
+for(int i = 0; i < rightY.rows; i++){
+    rightY.at<float>(i,0) = rightBarycenters[i].y;
+}
+rightBeta = rightX.inv(DECOMP_SVD)*rightY;//rightBeta = ((rightX.t()*rightX).inv())*rightX.t()*rightY;
+leftBeta = leftX.inv(DECOMP_SVD)*leftY;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
 
-//cvtColor( wip, wip, CV_GRAY2BGR );
-//addWeighted( rectangles, 1, wip, 0, 0.0, rectangles);
-//bitwise_or(wip,rectangles,rectangles);
+//right - points of the fitted curve
+float fittedY;
+float fittedX;
+Point fp;
+for(int i = 0; i<n_rect; i++){
+  fittedX = rightBarycenters[i].x;
+  fittedY = rightBeta.at<float>(2,0)*pow(fittedX,2)+rightBeta.at<float>(1,0)*fittedX+rightBeta.at<float>(0,0);
+  fp = Point(fittedX,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+}
+
+
+
+//left - points of the fitted curve
+for(int i = 0; i<n_rect; i++){
+  fittedX = leftBarycenters[i].x;
+  fittedY = leftBeta.at<float>(2,0)*pow(fittedX,2)+leftBeta.at<float>(1,0)*fittedX+leftBeta.at<float>(0,0);
+  fp = Point(fittedX,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+}
+
+cout << "Right X" << endl << rightX << endl << endl;
+cout << "Right Y" << endl << rightY << endl << endl;
+cout << "Left X" << endl << leftX << endl << endl;
+cout << "Left Y" << endl << leftY << endl << endl;
+cout << "Right Beta" << endl << rightBeta << endl << endl;
+cout << "Left Beta" << endl << leftBeta << endl << endl;
+//cout << "right barycenters" << endl << rightBarycenters << endl << endl;
 
 //Display Image
 char* window_1 = "Result";
