@@ -170,7 +170,7 @@ Mat rectangles = wip;
 cvtColor( rectangles, rectangles, CV_GRAY2BGR );
 int rect_width = width/10;
 //int rect_width = width/5;
-int rect_offset = height/20;
+int rect_offset = 0;
 int n_rect = 10;
 int rect_height = (height - rect_offset)/n_rect;
 Scalar rect_color = Scalar(0,0,255);
@@ -303,67 +303,67 @@ for(int i=0;i<n_rect;i++){
 
 }
 
-//Least square square root fitting
-//Right
-if(rightBarycenters.size() >= 2){ //condition for the system not to be underdetermined
-  Mat rightX = Mat::zeros( rightBarycenters.size(), 2 , CV_32F );
-  Mat rightY = Mat::zeros( rightBarycenters.size(), 1 , CV_32F );
-  Mat rightBeta;
-  //X
-  for(int i = 0; i < rightX.rows; i++){
-    for(int j = 0; j < rightX.cols; j++){
-       rightX.at<float>(i,j) = pow(rightBarycenters[i].x,float(j)/2);
-    }
-  }
-  //Y
-  for(int i = 0; i < rightY.rows; i++){
-      rightY.at<float>(i,0) = rightBarycenters[i].y;
-  }
-  rightBeta = rightX.inv(DECOMP_SVD)*rightY;//rightBeta = ((rightX.t()*rightX).inv())*rightX.t()*rightY;
-  float fittedY;
-  float fittedX;
-  Point fp;
-  vector<Point> fittedRight;
-  //Display fitted curve
-  for(int i = 0; i<width; i++){
-    fittedY = rightBeta.at<float>(1,0)*sqrt(i)+rightBeta.at<float>(0,0);
-    fp = Point(i,fittedY);
-    //circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
-    fittedRight.push_back(fp);
-  }
-  polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
-}
+
+//LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
+// y = beta_2*x^2 + beta_1*x + beta_0
+
+Mat rightX = Mat::zeros( rightBarycenters.size(), 3 , CV_32F );
+Mat leftX = Mat::zeros( leftBarycenters.size(), 3 , CV_32F );
+Mat rightY = Mat::zeros( rightBarycenters.size(), 1 , CV_32F );
+Mat leftY = Mat::zeros( leftBarycenters.size(), 1 , CV_32F );
+Mat rightBeta; //= Mat::zeros( 3, 1 , CV_32F );
+Mat leftBeta; //= Mat::zeros( 3, 1 , CV_32F );
 
 //Left
-if(leftBarycenters.size() >= 2){
-  Mat leftX = Mat::zeros( leftBarycenters.size(), 2 , CV_32F );
-  Mat leftY = Mat::zeros( leftBarycenters.size(), 1 , CV_32F );
-  Mat leftBeta; //= Mat::zeros( 3, 1 , CV_32F );
-  //X
-  for(int i = 0; i < leftX.rows; i++){
-    for(int j = 0; j < leftX.cols; j++){
-      //cout << float(j/2) << endl;
-       leftX.at<float>(i,j) = pow(leftBarycenters[i].x,float(j)/2);
-    }
+//X
+for(int i = 0; i < leftX.rows; i++){
+  for(int j = 0; j < leftX.cols; j++){
+     leftX.at<float>(i,j) = pow(leftBarycenters[i].x,j);
   }
-  //Y
-  for(int i = 0; i < leftY.rows; i++){
-      leftY.at<float>(i,0) = leftBarycenters[i].y;
-  }
-  leftBeta = leftX.inv(DECOMP_SVD)*leftY;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
-  float fittedY;
-  float fittedX;
-  Point fp;
-  //Display fitted curves
-  vector<Point> fittedLeft;
-  for(int i = 0; i<width; i++){
-    fittedY = leftBeta.at<float>(1,0)*sqrt(i)+leftBeta.at<float>(0,0);
-    fp = Point(i,fittedY);
-    //circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
-    fittedLeft.push_back(fp);
-  }
-  polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
 }
+
+//Y
+for(int i = 0; i < leftY.rows; i++){
+    leftY.at<float>(i,0) = leftBarycenters[i].y;
+}
+//Right
+//X
+for(int i = 0; i < rightX.rows; i++){
+  for(int j = 0; j < rightX.cols; j++){
+     rightX.at<float>(i,j) = pow(rightBarycenters[i].x,j);
+  }
+}
+//Y
+for(int i = 0; i < rightY.rows; i++){
+    rightY.at<float>(i,0) = rightBarycenters[i].y;
+}
+rightBeta = rightX.inv(DECOMP_SVD)*rightY;//rightBeta = ((rightX.t()*rightX).inv())*rightX.t()*rightY;
+leftBeta = leftX.inv(DECOMP_SVD)*leftY;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
+
+//right - points of the fitted curve
+float fittedY;
+float fittedX;
+Point fp;
+
+
+//Display fitted curves
+vector<Point> fittedRight;
+vector<Point> fittedLeft;
+for(int i = 0; i<width; i++){
+  fittedY = rightBeta.at<float>(2,0)*pow(i,2)+rightBeta.at<float>(1,0)*i+rightBeta.at<float>(0,0);
+  fp = Point(i,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+  fittedRight.push_back(fp);
+}
+for(int i = 0; i<width; i++){
+  fittedY = leftBeta.at<float>(2,0)*pow(i,2)+leftBeta.at<float>(1,0)*i+leftBeta.at<float>(0,0);
+  fp = Point(i,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+  fittedLeft.push_back(fp);
+}
+polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+
 
 //Display Image
 char* window_1 = "Result";
