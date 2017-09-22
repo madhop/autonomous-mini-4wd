@@ -319,22 +319,41 @@ leftBeta = leftX.inv(DECOMP_SVD)*leftY;//leftBeta = ((leftX.t()*leftX).inv()*lef
 float fittedY;
 float fittedX;
 Point fp;
+/*
+//Display fitted barycenters
 for(int i = 0; i<n_rect; i++){
   fittedX = rightBarycenters[i].x;
   fittedY = rightBeta.at<float>(2,0)*pow(fittedX,2)+rightBeta.at<float>(1,0)*fittedX+rightBeta.at<float>(0,0);
   fp = Point(fittedX,fittedY);
   circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
 }
-
-
-
 //left - points of the fitted curve
 for(int i = 0; i<n_rect; i++){
   fittedX = leftBarycenters[i].x;
   fittedY = leftBeta.at<float>(2,0)*pow(fittedX,2)+leftBeta.at<float>(1,0)*fittedX+leftBeta.at<float>(0,0);
   fp = Point(fittedX,fittedY);
   circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+}*/
+//Display fitted curves
+vector<Point> fittedRight;
+vector<Point> fittedLeft;
+for(int i = 0; i<width; i++){
+  fittedY = rightBeta.at<float>(2,0)*pow(i,2)+rightBeta.at<float>(1,0)*i+rightBeta.at<float>(0,0);
+  fp = Point(i,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+  fittedRight.push_back(fp);
 }
+//left - points of the fitted curve
+for(int i = 0; i<width; i++){
+  fittedY = leftBeta.at<float>(2,0)*pow(i,2)+leftBeta.at<float>(1,0)*i+leftBeta.at<float>(0,0);
+  fp = Point(i,fittedY);
+  circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+  fittedLeft.push_back(fp);
+}
+
+polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
+polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+
 
 cout << "Right X" << endl << rightX << endl << endl;
 cout << "Right Y" << endl << rightY << endl << endl;
