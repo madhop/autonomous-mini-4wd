@@ -148,7 +148,7 @@ if(counter==0){
   int max = 0;
   for(int i = 0; i<width; i++){
     int sum = 0;
-    for(int j = 0; j<height; j++){
+    for(int j = height/2; j < height; j ++){
       Scalar intensity = wip.at<uchar>(j, i);
       if(intensity.val[0] == 255){
         sum++;
