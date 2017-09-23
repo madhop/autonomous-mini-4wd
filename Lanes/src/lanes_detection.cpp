@@ -211,12 +211,14 @@ int main( int argc, char** argv ){
   if( !src.data ){
   return -1;
 }*/
-
+vector<Point> mask_curve_left;
+vector<Point> mask_curve_right;
 vector<Point> rightBarycenters;
 vector<Point> leftBarycenters;
 vector<Point> rightRectCenters;
 vector<Point> leftRectCenters;
-int counter = 0;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
+bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
+bool right_ok = false;
 for(;;){
   Mat src, wip;
   //Capture frame
@@ -256,38 +258,34 @@ for(;;){
   //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
-  Mat rectangles = wip;
 
-  if(counter>0){
-    /*Mat mask = Mat::zeros(height,width, CV_8UC1);
-    polylines( mask, fittedLeft, 0, 255, mask_offset, 0);
-    polylines( mask, fittedRight, 0, 255, mask_offset, 0);
+
+  //Curve Mask
+  if(left_ok && right_ok){
+    Mat mask = Mat::zeros(height,width, CV_8UC1);
+    polylines( mask, mask_curve_left, 0, 255, mask_offset, 0);
+    polylines( mask, mask_curve_right, 0, 255, mask_offset, 0);
+    bitwise_and(wip,mask,wip);
     char* window_3 = "Mask";
     namedWindow( window_3, WINDOW_NORMAL );
     cvResizeWindow(window_3, 800, 500);
     imshow( window_3, mask );
-    bitwise_and(wip,mask,wip);*/
-    //wip = curve_mask(fittedRight,fittedLeft,wip,mask_offset);
   }
 
 
 
+  Mat rectangles = wip;
   cvtColor( rectangles, rectangles, CV_GRAY2BGR );
-
-
 
   rightBarycenters = vector<Point>();
   leftBarycenters = vector<Point>();
   //Initialize rectangles
-  if(counter==0){//Se non ho le linee
-    rightRectCenters = vector<Point>();
+  if(left_ok==false){//Se non ho le linee
     leftRectCenters = vector<Point>();
     //First rectangle
     vector<int> acc = findHistAcc(wip);
     int leftFirstX = acc[0];
-    int rightFirstX = acc[1];
     leftRectCenters.push_back(Point(leftFirstX, height - rect_offset - rect_height/2));
-    rightRectCenters.push_back(Point(rightFirstX, height - rect_offset - rect_height/2));
     //Other rectangles
     for(int i=0;i<n_rect;i++){
       //Compute left rectangle
@@ -295,26 +293,15 @@ for(;;){
       Point lr2 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y - rect_height/2);
       Point lr3 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y - rect_height/2);
       Point lr4 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y + rect_height/2);
-      //Compute right rectangle
-      Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
-      Point rr2 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr3 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr4 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y + rect_height/2);
 
       //Draw left rectangle
       line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
       line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
       line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
       line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
-      //Draw right rectangle
-      line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
 
       //Compute barycenters and rectangle centers
       Point nextLeftCenter = Point();
-      Point nextRightCenter = Point();
 
       Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
       if(leftBar.x!=NULL && leftBar.y!=NULL){ //if no line is detected no barycenter is added
@@ -326,6 +313,59 @@ for(;;){
         nextLeftCenter.x = rightRectCenters[i].x;
       }
       nextLeftCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
+
+
+      if(i<n_rect-1){ //aggiunge il quadrato successivo tranne all'ultimo giro
+        leftRectCenters.push_back(nextLeftCenter);
+      }
+    }
+  }
+  else { //Se ho left
+    for(int i=0;i<n_rect;i++){
+
+      //Compute left rectangle
+      Point lr1 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y + rect_height/2);
+      Point lr2 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y - rect_height/2);
+      Point lr3 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y - rect_height/2);
+      Point lr4 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y + rect_height/2);
+
+      //Draw left rectangle
+      line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
+      line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
+      line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
+      line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
+
+
+      Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
+      if(leftBar.x!=NULL && leftBar.y!=NULL){ //if no line is detected no barycenter is added
+          leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
+          circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+          leftBarycenters.push_back(leftBar);
+      }
+  }
+}
+  if(right_ok==false){//Se non ho le linee
+    rightRectCenters = vector<Point>();
+    //First rectangle
+    vector<int> acc = findHistAcc(wip);
+    int rightFirstX = acc[1];
+    rightRectCenters.push_back(Point(rightFirstX, height - rect_offset - rect_height/2));
+    //Other rectangles
+    for(int i=0;i<n_rect;i++){
+      //Compute right rectangle
+      Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
+      Point rr2 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y - rect_height/2);
+      Point rr3 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y - rect_height/2);
+      Point rr4 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y + rect_height/2);
+
+      //Draw right rectangle
+      line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
+      line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
+      line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
+      line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
+
+      //Compute barycenters and rectangle centers
+      Point nextRightCenter = Point();
 
       Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
       if(rightBar.x!=NULL && rightBar.y!=NULL){
@@ -339,65 +379,57 @@ for(;;){
 
       if(i<n_rect-1){
         rightRectCenters.push_back(nextRightCenter);
-        leftRectCenters.push_back(nextLeftCenter);
       }
-
-
     }
-    cout << "Left centers" << leftRectCenters << endl;
-    cout << "Right centers" << rightRectCenters << endl;
 
-  }else{ //Se ho le linee
-
-
+  }
+else {//Se ho right
     for(int i=0;i<n_rect;i++){
-
-      //Compute left rectangle
-      Point lr1 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y + rect_height/2);
-      Point lr2 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr3 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr4 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y + rect_height/2);
       //Compute right rectangle
       Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
       Point rr2 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y - rect_height/2);
       Point rr3 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y - rect_height/2);
       Point rr4 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y + rect_height/2);
 
-      //Draw left rectangle
-      line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
       //Draw right rectangle
       line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
       line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
       line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
       line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
 
-
-      Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
-      if(leftBar.x!=NULL && leftBar.y!=NULL){ //if no line is detected no barycenter is added
-        //leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
-        circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-        leftBarycenters.push_back(leftBar);
-      }
       Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
       if(rightBar.x!=NULL && rightBar.y!=NULL){
-        //rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
+        rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         rightBarycenters.push_back(rightBar);
       }
 
+    }
   }
-}
+
+
 
   //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
   // x = beta_2*y^2 + beta_1*y + beta_0
   vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
   vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
+  //implement condition to switch from false to true
+  if(left_ok==false){
+    mask_curve_left = fittedLeft;
+  }
+  if(right_ok==false){
+    mask_curve_right = fittedRight;
+  }
+  left_ok=true;
+  right_ok=true;
+
+
+
+
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
   polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+
 
 
   //Display Image
@@ -407,7 +439,6 @@ for(;;){
   waitKey(0);
   //if(waitKey(30) >= 0) break;
   //outputVideo << src;
-  counter++;
 }
 return 0;
 }
