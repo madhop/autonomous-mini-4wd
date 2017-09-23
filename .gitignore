@@ -169,3 +169,13 @@ Lanes/build/test
 Lanes/data/vid/1_comp\.mp4
 
 Lanes/data/vid/challenge\.mp4
+
+Lanes/build/curve_fitting_poly
+
+Lanes/build/poly_fit
+
+Lanes/build/square_root_fit
+
+Lanes/build/vertical_poly_fit
+
+Lanes/src/test2\.cpp
