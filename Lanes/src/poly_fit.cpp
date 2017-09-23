@@ -186,18 +186,18 @@ vector<Point> leftBarycenters;
 //int rightBarX = rightMaxPos;
 //int rightBarY = height - rect_offset;
 //barycenter of the first rectangle
-Point leftBar = Point(leftMaxPos, height - rect_offset);
-Point rightBar = Point(rightMaxPos, height - rect_offset);
+Point leftBar = Point(leftMaxPos, height - rect_offset - rect_height/2);
+Point rightBar = Point(rightMaxPos, height - rect_offset - rect_height/2);
 //Compute first left rectangle ... per adesso non usiamo la y del baricentro ma costruiamo il rettangolo a partire dal tetto di quello sotto
-Point lr1 = Point(leftBar.x - rect_width/2, height - rect_offset ); //- i*rect_height
-Point lr2 = Point(leftBar.x - rect_width/2, height - rect_offset - rect_height);
-Point lr3 = Point(leftBar.x + rect_width/2, height - rect_offset - rect_height);
-Point lr4 = Point(leftBar.x + rect_width/2, height - rect_offset ); //- i*rect_height
+Point lr1 = Point(leftBar.x - rect_width/2, leftBar.y + rect_height/2);
+Point lr2 = Point(leftBar.x - rect_width/2, leftBar.y - rect_height/2);
+Point lr3 = Point(leftBar.x + rect_width/2, leftBar.y - rect_height/2);
+Point lr4 = Point(leftBar.x + rect_width/2, leftBar.y + rect_height/2 );
 //Compute first right rectangle
-Point rr1 = Point(rightBar.x - rect_width/2, height - rect_offset );
-Point rr2 = Point(rightBar.x - rect_width/2, height - rect_offset - rect_height);
-Point rr3 = Point(rightBar.x + rect_width/2, height - rect_offset - rect_height);
-Point rr4 = Point(rightBar.x + rect_width/2, height - rect_offset );
+Point rr1 = Point(rightBar.x - rect_width/2, rightBar.y + rect_height/2);
+Point rr2 = Point(rightBar.x - rect_width/2, rightBar.y - rect_height/2);
+Point rr3 = Point(rightBar.x + rect_width/2, rightBar.y - rect_height/2);
+Point rr4 = Point(rightBar.x + rect_width/2, rightBar.y + rect_height/2);
 //barycenter of the next rectangle
 Point nextLeftCenter = Point(leftMaxPos, height - rect_offset - rect_height/2);
 Point nextRightCenter = Point(rightMaxPos, height - rect_offset - rect_height/2);
