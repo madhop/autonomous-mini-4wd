@@ -49,8 +49,12 @@ int main( int argc, char** argv ){
   if( !src.data ){
   return -1;
 }*/
+vector<Point> fittedLeft;
+vector<Point> fittedRight;
+vector<Point> rightBarycenters;
+vector<Point> leftBarycenters;
+int counter = 0;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
 for(;;){
-  cout << "******* altro frame!!!" << endl;
   Mat src, detected_lines, wip;
   int x1,x2,y1,y2;
   vector<Vec4i> lines;
@@ -107,6 +111,38 @@ for(;;){
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
 
+  //Create mask based on previous curves
+  int mask_offset = 300;
+  Mat mask = Mat::zeros(height,width, CV_8UC1);
+  polylines( mask, fittedLeft, 0, 255, mask_offset, 0);
+  polylines( mask, fittedRight, 0, 255, mask_offset, 0);
+  char* window_3 = "Mask";
+  namedWindow( window_3, WINDOW_NORMAL );
+  cvResizeWindow(window_3, 800, 500);
+  imshow( window_3, mask );
+  if(counter>0){
+    bitwise_and(wip,mask,wip);
+  }
+
+
+
+//Barycenter computation
+//Mat rectangles = Mat::zeros( height, width, src.type() );
+Mat rectangles = wip;
+cvtColor( rectangles, rectangles, CV_GRAY2BGR );
+int rect_width = width/10;
+//int rect_width = width/5;
+int rect_offset = height/20;
+int n_rect = 10;
+int rect_height = (height - rect_offset)/n_rect;
+Scalar rect_color = Scalar(0,0,255);
+int rect_thickness = 2;
+
+
+Point leftBar;
+Point rightBar;
+//Initialize rectangles
+if(counter==0){
   //Compute Histogram
   int histogram[width];
   int max = 0;
@@ -114,7 +150,6 @@ for(;;){
     int sum = 0;
     for(int j = 0; j<height; j++){
       Scalar intensity = wip.at<uchar>(j, i);
-      //cout << intensity.val[0] << endl;
       if(intensity.val[0] == 255){
         sum++;
       }
@@ -146,48 +181,17 @@ for(;;){
       rightMaxPos = i;
     }
   }
-  cout << "rightMaxPos: " << rightMaxPos << endl;
-
-
-  /*
-  //Display Histogram
-  Mat hist =  Mat::zeros( max, width, wip.type() );
-
-  for(int i = 0; i<width;i++){
-  hist.at<uchar>(max - histogram[i] - 1, i) = 255;
-  //cout << max- histogram[i] << endl;
+  leftBar = Point(leftMaxPos, height - rect_offset - rect_height/2);
+  rightBar = Point(rightMaxPos, height - rect_offset - rect_height/2);
+}else{
+  leftBar = Point(leftBarycenters[0].x, height - rect_offset - rect_height/2);
+  rightBar = Point(rightBarycenters[0].x, height - rect_offset - rect_height/2);
 }
 
-char* window_2 = "Histogram";
-namedWindow( window_2, WINDOW_NORMAL );
-cvResizeWindow(window_2, 800, 500);
-imshow( window_2, hist );
-*/
-
-//Barycenter computation
-//Mat rectangles = Mat::zeros( height, width, src.type() );
-Mat rectangles = wip;
-cvtColor( rectangles, rectangles, CV_GRAY2BGR );
-int rect_width = width/10;
-//int rect_width = width/5;
-int rect_offset = height/20;
-int n_rect = 10;
-int rect_height = (height - rect_offset)/n_rect;
-Scalar rect_color = Scalar(0,0,255);
-int rect_thickness = 2;
-
 //vector of barycenter
-vector<Point> rightBarycenters;
-vector<Point> leftBarycenters;
-
-
-//int leftBarX = leftMaxPos;
-//int leftBarY = height - rect_offset;
-//int rightBarX = rightMaxPos;
-//int rightBarY = height - rect_offset;
+rightBarycenters = vector<Point>();
+leftBarycenters = vector<Point>();
 //barycenter of the first rectangle
-Point leftBar = Point(leftMaxPos, height - rect_offset - rect_height/2);
-Point rightBar = Point(rightMaxPos, height - rect_offset - rect_height/2);
 //Compute first left rectangle ... per adesso non usiamo la y del baricentro ma costruiamo il rettangolo a partire dal tetto di quello sotto
 Point lr1 = Point(leftBar.x - rect_width/2, leftBar.y + rect_height/2);
 Point lr2 = Point(leftBar.x - rect_width/2, leftBar.y - rect_height/2);
@@ -199,8 +203,8 @@ Point rr2 = Point(rightBar.x - rect_width/2, rightBar.y - rect_height/2);
 Point rr3 = Point(rightBar.x + rect_width/2, rightBar.y - rect_height/2);
 Point rr4 = Point(rightBar.x + rect_width/2, rightBar.y + rect_height/2);
 //barycenter of the next rectangle
-Point nextLeftCenter = Point(leftMaxPos, height - rect_offset - rect_height/2);
-Point nextRightCenter = Point(rightMaxPos, height - rect_offset - rect_height/2);
+Point nextLeftCenter = Point(leftBar.x, height - rect_offset - rect_height/2);
+Point nextRightCenter = Point(rightBar.x, height - rect_offset - rect_height/2);
 for(int i=0;i<n_rect;i++){
 
   //Draw left rectangle
@@ -282,7 +286,6 @@ for(int i=0;i<n_rect;i++){
   if(xWeight!=0 && yWeight!=0){
     rightBar.y /= yWeight;
     rightBar.x /= xWeight;
-    cout << i << ". " << rightBar.x << " " << rightBar.y << endl;
     rightBarycenters.push_back(rightBar);
     circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
     nextRightCenter.x = rightBarycenters[rightBarycenters.size()-1].x;
@@ -299,13 +302,11 @@ for(int i=0;i<n_rect;i++){
   rr2 = Point(nextRightCenter.x - rect_width/2, nextRightCenter.y - rect_height/2);
   rr3 = Point(nextRightCenter.x + rect_width/2, nextRightCenter.y - rect_height/2);
   rr4 = Point(nextRightCenter.x + rect_width/2, nextRightCenter.y + rect_height/2);
-
-
 }
 //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
 // x = beta_2*y^2 + beta_1*y + beta_0
 //Left
-if(leftBarycenters.size() >= 2){
+if(leftBarycenters.size() >= 3){
   Mat leftX = Mat::zeros( leftBarycenters.size(), 1 , CV_32F );
   Mat leftY = Mat::zeros( leftBarycenters.size(), 3 , CV_32F );
   Mat leftBeta; //= Mat::zeros( 3, 1 , CV_32F );
@@ -320,7 +321,7 @@ if(leftBarycenters.size() >= 2){
     leftX.at<float>(i,0) = leftBarycenters[i].x;
   }
   leftBeta = leftY.inv(DECOMP_SVD)*leftX;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
-  vector<Point> fittedLeft;
+  fittedLeft = vector<Point>();
 
   for(int i = 0; i<height; i++){
     float fittedX = leftBeta.at<float>(2,0)*pow(i,2)+leftBeta.at<float>(1,0)*i+leftBeta.at<float>(0,0);
@@ -331,7 +332,7 @@ if(leftBarycenters.size() >= 2){
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
 }
 //Right
-if(rightBarycenters.size() >= 2){
+if(rightBarycenters.size() >= 3){
   Mat rightX = Mat::zeros( rightBarycenters.size(), 1 , CV_32F );
   Mat rightY = Mat::zeros( rightBarycenters.size(), 3 , CV_32F );
   Mat rightBeta; //= Mat::zeros( 3, 1 , CV_32F );
@@ -346,7 +347,7 @@ if(rightBarycenters.size() >= 2){
     rightX.at<float>(i,0) = rightBarycenters[i].x;
   }
   rightBeta = rightY.inv(DECOMP_SVD)*rightX;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
-  vector<Point> fittedRight;
+  fittedRight = vector<Point>();
 
   for(int i = 0; i<width; i++){
     float fittedX = rightBeta.at<float>(2,0)*pow(i,2)+rightBeta.at<float>(1,0)*i+rightBeta.at<float>(0,0);
@@ -367,10 +368,10 @@ namedWindow( window_2, WINDOW_NORMAL );
 cvResizeWindow(window_2, 800, 500);
 imshow( window_2, rectangles );
 
-waitKey(0);
-//if(waitKey(30) >= 0) break;
+//waitKey(0);
+if(waitKey(30) >= 0) break;
 //outputVideo << src;
-
+counter++;
 }
 return 0;
 }
