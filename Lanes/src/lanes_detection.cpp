@@ -188,6 +188,7 @@ Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
   cvResizeWindow(window_3, 800, 500);
   imshow( window_3, mask );
   bitwise_and(mat,mask,mat);
+  return mat;
 }
 
 /** @function main */
@@ -210,8 +211,7 @@ int main( int argc, char** argv ){
   if( !src.data ){
   return -1;
 }*/
-vector<Point> fittedLeft;
-vector<Point> fittedRight;
+
 vector<Point> rightBarycenters;
 vector<Point> leftBarycenters;
 vector<Point> rightRectCenters;
@@ -257,17 +257,18 @@ for(;;){
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
   Mat rectangles = wip;
-  /*
+
   if(counter>0){
-    Mat mask = Mat::zeros(height,width, CV_8UC1);
+    /*Mat mask = Mat::zeros(height,width, CV_8UC1);
     polylines( mask, fittedLeft, 0, 255, mask_offset, 0);
     polylines( mask, fittedRight, 0, 255, mask_offset, 0);
     char* window_3 = "Mask";
     namedWindow( window_3, WINDOW_NORMAL );
     cvResizeWindow(window_3, 800, 500);
     imshow( window_3, mask );
-    bitwise_and(wip,mask,wip);
-  }*/
+    bitwise_and(wip,mask,wip);*/
+    //wip = curve_mask(fittedRight,fittedLeft,wip,mask_offset);
+  }
 
 
 
@@ -348,8 +349,6 @@ for(;;){
 
   }else{ //Se ho le linee
 
-    //Create mask based on previous curves
-    //wip = curve_mask(fittedRight,fittedLeft,wip,mask_offset);
 
     for(int i=0;i<n_rect;i++){
 
@@ -394,8 +393,8 @@ for(;;){
 
   //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
   // x = beta_2*y^2 + beta_1*y + beta_0
-  fittedLeft = polyFit(leftBarycenters,wip);
-  fittedRight = polyFit(rightBarycenters,wip);
+  vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
+  vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
   polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
