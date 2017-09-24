@@ -17,11 +17,12 @@ using namespace cv;
 #define rect_offset_ratio 20
 #define n_rect 10
 #define rect_thickness 2
+#define weight_threshold 10
 
 const Scalar rect_color = Scalar(0,0,255);
 
 
-void displayImg(char* window_name,Mat mat){
+void displayImg(const char* window_name,Mat mat){
   namedWindow( window_name, WINDOW_NORMAL );
   cvResizeWindow(window_name, 800, 500);
   imshow( window_name, mat );
@@ -64,8 +65,7 @@ float movingAverage(float avg, float new_sample){
 }
 
 Point computeBarycenter(Point p1, Point p2, Point p3, Point p4, Mat mat){
-  int yWeight = 0;
-  int xWeight = 0;
+  int totWeight = 0;
   Point bar;
   bar.y = 0;
   bar.x = 0;
@@ -75,29 +75,31 @@ Point computeBarycenter(Point p1, Point p2, Point p3, Point p4, Mat mat){
       int intensity = mat.at<uchar>(j, k);
       if(intensity == 255){
         weight ++;
-        yWeight++;
+        totWeight++;
       }
     }
     bar.y += j*weight;
   }
+  totWeight=0;
   for(int j = p1.x; j < p4.x; j++){
     int weight = 0;
     for(int k = p1.y; k > p2.y; k--){
       int intensity = mat.at<uchar>(k, j);
       if(intensity == 255){
         weight ++;
-        xWeight++;
+        totWeight++;
       }
     }
     bar.x += j*weight;
   }
-  if(xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added
-    bar.y /= yWeight;
-    bar.x /= xWeight;
-    return bar;
+  if(totWeight>weight_threshold){//xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added or even if it's just a random bunch of pixels
+    bar.y /= totWeight;
+    bar.x /= totWeight;
   }else{
-    return Point(NULL,NULL);
+    bar.x = -1;
+    bar.y = -1;
   }
+  return bar;
 }
 
 vector<Point> polyFit(vector<Point> points,Mat mat){
@@ -183,11 +185,8 @@ Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
   Mat mask = Mat::zeros(height,width, CV_8UC1);
   polylines( mask, curve1, 0, 255, offset, 0);
   polylines( mask, curve2, 0, 255, offset, 0);
-  char* window_3 = "Mask";
-  namedWindow( window_3, WINDOW_NORMAL );
-  cvResizeWindow(window_3, 800, 500);
-  imshow( window_3, mask );
   bitwise_and(mat,mask,mat);
+  displayImg("Mask",mask);
   return mat;
 }
 
@@ -198,6 +197,8 @@ int main( int argc, char** argv ){
   if(!cap.isOpened()){  // check if we succeeded
     return -1;
   }
+  /*
+  //Write video
   VideoWriter outputVideo;
   outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
   if (!outputVideo.isOpened())
@@ -205,12 +206,14 @@ int main( int argc, char** argv ){
     cout  << "Could not open the output video" << endl;
     return -1;
   }
+  */
   /*
   //Load image
   src = imread( argv[1] ); /// Load an image
   if( !src.data ){
   return -1;
-}*/
+}
+*/
 vector<Point> mask_curve_left;
 vector<Point> mask_curve_right;
 vector<Point> rightBarycenters;
@@ -262,14 +265,7 @@ for(;;){
 
   //Curve Mask
   if(left_ok && right_ok){
-    Mat mask = Mat::zeros(height,width, CV_8UC1);
-    polylines( mask, mask_curve_left, 0, 255, mask_offset, 0);
-    polylines( mask, mask_curve_right, 0, 255, mask_offset, 0);
-    bitwise_and(wip,mask,wip);
-    char* window_3 = "Mask";
-    namedWindow( window_3, WINDOW_NORMAL );
-    cvResizeWindow(window_3, 800, 500);
-    imshow( window_3, mask );
+    wip = curve_mask(mask_curve_right,mask_curve_left,wip,mask_offset);
   }
 
 
@@ -304,7 +300,7 @@ for(;;){
       Point nextLeftCenter = Point();
 
       Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
-      if(leftBar.x!=NULL && leftBar.y!=NULL){ //if no line is detected no barycenter is added
+      if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
         leftBarycenters.push_back(leftBar);
         circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         nextLeftCenter.x = leftBar.x;
@@ -337,7 +333,7 @@ for(;;){
 
 
       Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
-      if(leftBar.x!=NULL && leftBar.y!=NULL){ //if no line is detected no barycenter is added
+      if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
           leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
           circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
           leftBarycenters.push_back(leftBar);
@@ -368,7 +364,7 @@ for(;;){
       Point nextRightCenter = Point();
 
       Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
-      if(rightBar.x!=NULL && rightBar.y!=NULL){
+      if(rightBar.x!=-1 && rightBar.y!=-1){
         rightBarycenters.push_back(rightBar);
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         nextRightCenter.x = rightBar.x;
@@ -398,7 +394,7 @@ else {//Se ho right
       line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
 
       Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
-      if(rightBar.x!=NULL && rightBar.y!=NULL){
+      if(rightBar.x!=-1 && rightBar.y!=-1){
         rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         rightBarycenters.push_back(rightBar);
@@ -424,12 +420,8 @@ else {//Se ho right
   left_ok=true;
   right_ok=true;
 
-
-
-
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
   polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
-
 
 
   //Display Image
