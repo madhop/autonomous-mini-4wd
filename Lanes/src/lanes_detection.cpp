@@ -410,6 +410,9 @@ else {//Se ho right
   vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
   vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
+  
+
+
   //implement condition to switch from false to true
   if(left_ok==false){
     mask_curve_left = fittedLeft;
