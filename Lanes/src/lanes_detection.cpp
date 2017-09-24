@@ -190,6 +190,18 @@ Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
   return mat;
 }
 
+float computeRmse(vector<Point> curve1, vector<Point> curve2){
+  float rmse = 0;
+  if( curve1.size()>0){
+    //RMSE
+    for(int i=0; i<curve1.size();i++){
+      rmse+=pow(curve1[i].x-curve2[i].x,2)/curve1.size();
+    }
+    rmse = sqrt(rmse);
+  }
+  return rmse;
+}
+
 /** @function main */
 int main( int argc, char** argv ){
   //Load video
@@ -216,10 +228,12 @@ int main( int argc, char** argv ){
 */
 vector<Point> mask_curve_left;
 vector<Point> mask_curve_right;
+vector<Point> lastOkFittedRight;
+vector<Point> lastOkFittedLeft;
 vector<Point> rightBarycenters;
 vector<Point> leftBarycenters;
-vector<Point> rightRectCenters;
-vector<Point> leftRectCenters;
+vector<Point> lastOkRightRectCenters;
+vector<Point> lastOkLeftRectCenters;
 bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
 bool right_ok = false;
 for(;;){
@@ -275,6 +289,8 @@ for(;;){
 
   rightBarycenters = vector<Point>();
   leftBarycenters = vector<Point>();
+  vector<Point> leftRectCenters;
+  vector<Point> rightRectCenters;
   //Initialize rectangles
   if(left_ok==false){//Se non ho le linee
     leftRectCenters = vector<Point>();
@@ -317,6 +333,7 @@ for(;;){
     }
   }
   else { //Se ho left
+    leftRectCenters = lastOkLeftRectCenters;
     for(int i=0;i<n_rect;i++){
 
       //Compute left rectangle
@@ -380,6 +397,7 @@ for(;;){
 
   }
 else {//Se ho right
+   rightRectCenters = lastOkRightRectCenters;
     for(int i=0;i<n_rect;i++){
       //Compute right rectangle
       Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
@@ -410,21 +428,47 @@ else {//Se ho right
   vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
   vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
-  
+  polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
+  polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
+  polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
+  polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+
+
+
+  //If there's at least one sound curve and the curve at the current frame is sound as well
+  if( mask_curve_right.size()>0 && fittedRight.size()>0){
+    float rightRmse;
+    rightRmse = computeRmse(fittedRight,lastOkFittedRight);
+    if(rightRmse < 10){
+      lastOkFittedRight = fittedRight;
+      lastOkRightRectCenters = rightRectCenters;
+    }
+  }
+
+  if( mask_curve_left.size()>0 && fittedLeft.size()>0){
+    float leftRmse;
+    leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
+    if(leftRmse < 10){
+      lastOkFittedLeft = fittedLeft;
+      lastOkLeftRectCenters = leftRectCenters;
+    }
+  }
 
 
   //implement condition to switch from false to true
   if(left_ok==false){
     mask_curve_left = fittedLeft;
+    lastOkFittedLeft = fittedLeft;
+    lastOkLeftRectCenters = leftRectCenters;
   }
   if(right_ok==false){
     mask_curve_right = fittedRight;
+    lastOkFittedRight = fittedRight;
+    lastOkRightRectCenters = rightRectCenters;
   }
   left_ok=true;
   right_ok=true;
 
-  polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
-  polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
 
 
   //Display Image
