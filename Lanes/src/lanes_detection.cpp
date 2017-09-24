@@ -18,6 +18,8 @@ using namespace cv;
 #define n_rect 10
 #define rect_thickness 2
 #define weight_threshold 10
+#define max_dir_changes 5
+#define straight_tollerance_ratio 100
 
 const Scalar rect_color = Scalar(0,0,255);
 
@@ -286,6 +288,7 @@ for(;;){
   const int rect_width = width/rect_width_ratio;
   const int rect_offset = height/rect_offset_ratio;
   const int rect_height = (height - rect_offset)/n_rect;
+  const int straight_tollerance = width/straight_tollerance_ratio;
   wip = src;
 
   cvtColor( wip, wip, CV_BGR2GRAY );
@@ -323,8 +326,6 @@ for(;;){
     wip = curve_mask(mask_curve_right,mask_curve_left,wip,mask_offset);
   }
 
-
-
   Mat rectangles = wip;
   cvtColor( rectangles, rectangles, CV_GRAY2BGR );
 
@@ -343,13 +344,15 @@ for(;;){
     for(int i=0;i<n_rect;i++){
       //Compute left rectangle
       vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
-      //Draw left rectangle
-      drawRect(left_rect, rect_color, rect_thickness, rectangles);
       //Compute barycenters and rectangle centers
       Point nextLeftCenter = Point();
 
       Point leftBar = computeBarycenter(left_rect ,wip);
       if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
+        //move rectangle
+        left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
+        leftRectCenters[i].x = leftBar.x;
+
         leftBarycenters.push_back(leftBar);
         circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         nextLeftCenter.x = leftBar.x;
@@ -360,9 +363,11 @@ for(;;){
       nextLeftCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
 
 
-      if(i<n_rect-1){ //aggiunge il quadrato successivo tranne all'ultimo giro
+      if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
         leftRectCenters.push_back(nextLeftCenter);
       }
+      //Draw left rectangle
+      drawRect(left_rect, rect_color, rect_thickness, rectangles);
     }
   }
   else { //Se ho left
@@ -370,15 +375,18 @@ for(;;){
     for(int i=0;i<n_rect;i++){
       //Compute left rectangle
       vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
-      //Draw left rectangle
-      drawRect(left_rect, rect_color, rect_thickness, rectangles);
 
       Point leftBar = computeBarycenter(left_rect ,wip);
       if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
-          leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
-          circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-          leftBarycenters.push_back(leftBar);
+        //move rectangle
+        left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
+
+        leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
+        circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+        leftBarycenters.push_back(leftBar);
       }
+      //Draw left rectangle
+      drawRect(left_rect, rect_color, rect_thickness, rectangles);
   }
 }
   if(right_ok==false){//Se non ho right
@@ -391,15 +399,14 @@ for(;;){
     for(int i=0;i<n_rect;i++){
       //Compute right rectangle
       vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
-
-      //Draw right rectangle
-      drawRect(right_rect, rect_color, rect_thickness, rectangles);
-
       //Compute barycenters and rectangle centers
       Point nextRightCenter = Point();
-
       Point rightBar = computeBarycenter(right_rect ,wip);
       if(rightBar.x!=-1 && rightBar.y!=-1){
+        //move rectangle
+        right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
+        rightRectCenters[i].x = rightBar.x;
+
         rightBarycenters.push_back(rightBar);
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         nextRightCenter.x = rightBar.x;
@@ -408,9 +415,11 @@ for(;;){
       }
       nextRightCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
 
-      if(i<n_rect-1){
+      if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
         rightRectCenters.push_back(nextRightCenter);
       }
+      //Draw right rectangle
+      drawRect(right_rect, rect_color, rect_thickness, rectangles);
     }
 
   }
@@ -419,20 +428,35 @@ else {//Se ho right
     for(int i=0;i<n_rect;i++){
       //Compute right rectangle
       vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
-      //Draw right rectangle
-      drawRect(right_rect, rect_color, rect_thickness, rectangles);
 
       Point rightBar = computeBarycenter(right_rect ,wip);
       if(rightBar.x!=-1 && rightBar.y!=-1){
+        //move rectangle
+        right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
+
         rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
         rightBarycenters.push_back(rightBar);
       }
+      //Draw right rectangle
+      drawRect(right_rect, rect_color, rect_thickness, rectangles);
 
     }
   }
 
+  //count how many times changes in direction are spotted
+  //left
+  /*
+  int changes = 0;
+  int direction; // -1 = left; 0 = straight; 1 = right
+  for(int i = 0; i<n_rect-1; i++){
+    straight_tollerance;
+    if(){
 
+    }
+  }*/
+
+  //right
 
   //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
   // x = beta_2*y^2 + beta_1*y + beta_0
@@ -481,7 +505,7 @@ else {//Se ho right
   right_ok=true;
 
 
-  rectangles = reversePerspectiveTransform(rectangles);
+  //rectangles = reversePerspectiveTransform(rectangles);
 
   //Display Image
   displayImg("Wip",wip);
