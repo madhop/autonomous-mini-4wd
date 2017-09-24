@@ -21,6 +21,21 @@ using namespace cv;
 
 const Scalar rect_color = Scalar(0,0,255);
 
+vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given the center of the rectangle compute the 4 vertex
+  vector<Point> points;
+  points.push_back(Point(center.x - rect_width/2, center.y + rect_height/2));
+  points.push_back(Point(center.x - rect_width/2, center.y - rect_height/2));
+  points.push_back(Point(center.x + rect_width/2, center.y - rect_height/2));
+  points.push_back(Point(center.x + rect_width/2, center.y + rect_height/2 ));
+  return points;
+}
+
+void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles){ //draw the rectangles
+  line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[2], rect_points[3], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[3], rect_points[0], rect_color, thickness, CV_AA);
+}
 
 void displayImg(const char* window_name,Mat mat){
   namedWindow( window_name, WINDOW_NORMAL );
@@ -64,14 +79,14 @@ float movingAverage(float avg, float new_sample){
   return avg;
 }
 
-Point computeBarycenter(Point p1, Point p2, Point p3, Point p4, Mat mat){
+Point computeBarycenter(vector<Point> points, Mat mat){
   int totWeight = 0;
   Point bar;
   bar.y = 0;
   bar.x = 0;
-  for(int j = p1.y; j > p2.y; j--){
+  for(int j = points[0].y; j > points[1].y; j--){
     int weight = 0;
-    for(int k = p1.x; k < p4.x; k++){
+    for(int k = points[0].x; k < points[3].x; k++){
       int intensity = mat.at<uchar>(j, k);
       if(intensity == 255){
         weight ++;
@@ -81,9 +96,9 @@ Point computeBarycenter(Point p1, Point p2, Point p3, Point p4, Mat mat){
     bar.y += j*weight;
   }
   totWeight=0;
-  for(int j = p1.x; j < p4.x; j++){
+  for(int j = points[0].x; j < points[3].x; j++){
     int weight = 0;
-    for(int k = p1.y; k > p2.y; k--){
+    for(int k = points[0].y; k > points[1].y; k--){
       int intensity = mat.at<uchar>(k, j);
       if(intensity == 255){
         weight ++;
@@ -292,7 +307,7 @@ for(;;){
   vector<Point> leftRectCenters;
   vector<Point> rightRectCenters;
   //Initialize rectangles
-  if(left_ok==false){//Se non ho le linee
+  if(left_ok==false){//Se non ho left
     leftRectCenters = vector<Point>();
     //First rectangle
     vector<int> acc = findHistAcc(wip);
@@ -301,21 +316,13 @@ for(;;){
     //Other rectangles
     for(int i=0;i<n_rect;i++){
       //Compute left rectangle
-      Point lr1 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y + rect_height/2);
-      Point lr2 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr3 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr4 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y + rect_height/2);
-
+      vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
       //Draw left rectangle
-      line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
-
+      drawRect(left_rect, rect_color, rect_thickness, rectangles);
       //Compute barycenters and rectangle centers
       Point nextLeftCenter = Point();
 
-      Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
+      Point leftBar = computeBarycenter(left_rect ,wip);
       if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
         leftBarycenters.push_back(leftBar);
         circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
@@ -335,21 +342,12 @@ for(;;){
   else { //Se ho left
     leftRectCenters = lastOkLeftRectCenters;
     for(int i=0;i<n_rect;i++){
-
       //Compute left rectangle
-      Point lr1 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y + rect_height/2);
-      Point lr2 = Point(leftRectCenters[i].x - rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr3 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y - rect_height/2);
-      Point lr4 = Point(leftRectCenters[i].x + rect_width/2, leftRectCenters[i].y + rect_height/2);
-
+      vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
       //Draw left rectangle
-      line( rectangles, lr1, lr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr2, lr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr3, lr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, lr4, lr1, rect_color, rect_thickness, CV_AA);
+      drawRect(left_rect, rect_color, rect_thickness, rectangles);
 
-
-      Point leftBar = computeBarycenter(lr1,lr2,lr3,lr4,wip);
+      Point leftBar = computeBarycenter(left_rect ,wip);
       if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
           leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
           circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
@@ -357,7 +355,7 @@ for(;;){
       }
   }
 }
-  if(right_ok==false){//Se non ho le linee
+  if(right_ok==false){//Se non ho right
     rightRectCenters = vector<Point>();
     //First rectangle
     vector<int> acc = findHistAcc(wip);
@@ -366,21 +364,15 @@ for(;;){
     //Other rectangles
     for(int i=0;i<n_rect;i++){
       //Compute right rectangle
-      Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
-      Point rr2 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr3 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr4 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y + rect_height/2);
+      vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
 
       //Draw right rectangle
-      line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
+      drawRect(right_rect, rect_color, rect_thickness, rectangles);
 
       //Compute barycenters and rectangle centers
       Point nextRightCenter = Point();
 
-      Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
+      Point rightBar = computeBarycenter(right_rect ,wip);
       if(rightBar.x!=-1 && rightBar.y!=-1){
         rightBarycenters.push_back(rightBar);
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
@@ -400,18 +392,11 @@ else {//Se ho right
    rightRectCenters = lastOkRightRectCenters;
     for(int i=0;i<n_rect;i++){
       //Compute right rectangle
-      Point rr1 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y + rect_height/2);
-      Point rr2 = Point(rightRectCenters[i].x - rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr3 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y - rect_height/2);
-      Point rr4 = Point(rightRectCenters[i].x + rect_width/2, rightRectCenters[i].y + rect_height/2);
-
+      vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
       //Draw right rectangle
-      line( rectangles, rr1, rr2, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr2, rr3, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr3, rr4, rect_color, rect_thickness, CV_AA);
-      line( rectangles, rr4, rr1, rect_color, rect_thickness, CV_AA);
+      drawRect(right_rect, rect_color, rect_thickness, rectangles);
 
-      Point rightBar = computeBarycenter(rr1,rr2,rr3,rr4,wip);
+      Point rightBar = computeBarycenter(right_rect ,wip);
       if(rightBar.x!=-1 && rightBar.y!=-1){
         rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
         circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
