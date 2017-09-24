@@ -69,6 +69,32 @@ Mat perspectiveTransform(Mat mat){
   return mat;
 }
 
+Mat reversePerspectiveTransform(Mat mat){
+  //Perspective Transform
+  int width = mat.size().width;
+  int height = mat.size().height;
+  Point2f inPoints[4];
+  inPoints[0] = Point2f( 0, height );
+  inPoints[1] = Point2f( width/2-width/8, height/2+height/6);
+  inPoints[2] = Point2f( width/2+width/8, height/2+height/6);
+  inPoints[3] = Point2f( width, height);
+
+  Point2f outPoints[4];
+  outPoints[0] = Point2f( 0,height);
+  outPoints[1] = Point2f( 0, 0);
+  outPoints[2] = Point2f( width, 0);
+  outPoints[3] = Point2f( width, height);
+
+  // Set the lambda matrix the same type and size as input
+  Mat lambda = Mat::zeros( height, width , mat.type() );
+
+  // Get the Perspective Transform Matrix i.e. lambda
+  lambda = getPerspectiveTransform( outPoints, inPoints );
+  // Apply the Perspective Transform just found to the src image
+  warpPerspective(mat,mat,lambda,mat.size() );
+  return mat;
+}
+
 float movingAverage(float avg, float new_sample){
   int N = 20;
   if(avg == 0.0){
@@ -455,6 +481,7 @@ else {//Se ho right
   right_ok=true;
 
 
+  rectangles = reversePerspectiveTransform(rectangles);
 
   //Display Image
   displayImg("Wip",wip);
