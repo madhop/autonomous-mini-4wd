@@ -17,12 +17,14 @@ using namespace cv;
 #define rect_offset_ratio 20
 #define n_rect 10
 #define rect_thickness 2
-#define weight_threshold 10
+#define tot_min_weight 10
 #define max_dir_changes 5
 #define straight_tolerance_ratio 80
 #define max_rmse_ratio 70
 #define max_bad_curves 0
 #define min_good_curves 1
+#define min_barycenters 5 //in realtà andrebbe messo come ratio e diviso per n_rect
+#define next_bary_max_distance 50 //anche qui va messo ratio
 
 const Scalar rect_color = Scalar(0,0,255);
 
@@ -111,6 +113,7 @@ float movingAverage(float avg, float new_sample){
 }
 
 Point computeBarycenter(vector<Point> points, Mat mat){
+  cout << "********************** rect" << endl;
   int totWeight = 0;
   Point bar;
   bar.y = 0;
@@ -138,7 +141,7 @@ Point computeBarycenter(vector<Point> points, Mat mat){
     }
     bar.x += j*weight;
   }
-  if(totWeight>weight_threshold){//xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added or even if it's just a random bunch of pixels
+  if(totWeight>tot_min_weight){//xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added or even if it's just a random bunch of pixels
     bar.y /= totWeight;
     bar.x /= totWeight;
   }else{
@@ -238,15 +241,45 @@ Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
 }
 
 float computeRmse(vector<Point> curve1, vector<Point> curve2){
-  float rmse = 0;
-  if( curve1.size()>0){
+  float rmse = -1;
+  if( curve1.size() > 0 && curve2.size() > 0){
     //RMSE
+    rmse = 0;
     for(int i=0; i<curve1.size();i++){
       rmse+=pow(curve1[i].x-curve2[i].x,2)/curve1.size();
     }
     rmse = sqrt(rmse);
   }
   return rmse;
+}
+
+int dirChanges(vector<Point> points, int tolerance){
+  int changes = 0;
+  int direction; // -1 = left; 0 = straight; 1 = right
+  if(points.size() > 1){
+    changes = 0;
+    for(int i = 0; i < points.size()-1; i++){
+      int curCenterX = points[i].x;
+      int nextCenterX = points[i+1].x;
+      if(abs(curCenterX - nextCenterX) < tolerance){ //going straight
+        if(direction != 0){
+          direction = 0;
+          changes++;
+        }
+      }else if(curCenterX - nextCenterX > tolerance){ //going left
+        if(direction != -1){
+          direction = -1;
+          changes++;
+        }
+      }else{  //going right
+        if(direction != 1){
+          direction = 1;
+          changes++;
+        }
+      }
+    }
+  }
+  return changes;
 }
 
 /** @function main */
@@ -285,13 +318,14 @@ bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando no
 bool right_ok = false;
 bool some_left = false;
 bool some_right = false;
-int bad_left = 0;
-int bad_right = 0;
-int sound_right = 0;
-int sound_left = 0;
+int left_bad_series = 0;
+int right_bad_series = 0;
+int right_ok_series = 0;
+int left_ok_series = 0;
 for(;;){
   Mat src, wip;
   //Capture frame
+  cout << "*********************************** frame" << endl;
   cap >> src;
   int width = src.size().width;
   int height = src.size().height;
@@ -362,7 +396,7 @@ for(;;){
         //Compute barycenters and rectangle centers
         Point nextLeftCenter = Point();
         Point leftBar = computeBarycenter(left_rect ,wip);
-        if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
+        if(leftBar.x!=-1 && leftBar.y!=-1 && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance){ //if no line is detected no barycenter is added
           //move rectangle
           left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
           leftRectCenters[i].x = leftBar.x;
@@ -394,7 +428,8 @@ for(;;){
       vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
 
       Point leftBar = computeBarycenter(left_rect ,wip);
-      if(leftBar.x!=-1 && leftBar.y!=-1){ //if no line is detected no barycenter is added
+      if(leftBar.x!=-1 && leftBar.y!=-1 && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance){ //if no line is detected no barycenter is added
+                                                                                                          //and if the barycenters are way too far from each other
         //move rectangle
         left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
 
@@ -428,7 +463,7 @@ for(;;){
         //Compute barycenters and rectangle centers
         Point nextRightCenter = Point();
         Point rightBar = computeBarycenter(right_rect ,wip);
-        if(rightBar.x!=-1 && rightBar.y!=-1){
+        if(rightBar.x!=-1 && rightBar.y!=-1 && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance){
           //move rectangle
           right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
           rightRectCenters[i].x = rightBar.x;
@@ -456,7 +491,7 @@ else {//Se ho right
       vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
 
       Point rightBar = computeBarycenter(right_rect ,wip);
-      if(rightBar.x!=-1 && rightBar.y!=-1){
+      if(rightBar.x!=-1 && rightBar.y!=-1 && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance){
         //move rectangle
         right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
         rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
@@ -486,65 +521,22 @@ else {//Se ho right
   polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
 
 
-
+  //Classification parameters
   //Compute changes in direction
-  //right
-  int leftChanges = 0;
-  int leftDirection; // -1 = left; 0 = straight; 1 = right
-  for(int i = 0; i < n_rect-1; i++){
-    int curCenterX = rightRectCenters[i].x;
-    int nextCenterX = rightRectCenters[i+1].x;
-    if(abs(curCenterX - nextCenterX) < straight_tolerance){ //going straight
-      if(leftDirection != 0){
-        leftDirection = 0;
-        leftChanges++;
-      }
-    }else if(curCenterX - nextCenterX > straight_tolerance){ //going left
-      if(leftDirection != -1){
-        leftDirection = -1;
-        leftChanges++;
-      }
-    }else{  //going right
-      if(leftDirection != 1){
-        leftDirection = 1;
-        leftChanges++;
-      }
-    }
-  }
-  //cout << "left changes" << leftChanges << endl;
+  int leftChanges = dirChanges(leftBarycenters,straight_tolerance);
+  int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
+  //Compute rmse between current curve and last one
+  int leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
+  int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
 
-  //left
-  int rightChanges = 0;
-  int rightDirection; // -1 = left; 0 = straight; 1 = right
-  for(int i = 0; i < n_rect-1; i++){
-    int curCenterX = rightRectCenters[i].x;
-    int nextCenterX = rightRectCenters[i+1].x;
-    if(abs(curCenterX - nextCenterX) < straight_tolerance){ //going straight
-      if(rightDirection != 0){
-        rightDirection = 0;
-        rightChanges++;
-      }
-    }else if(curCenterX - nextCenterX > straight_tolerance){ //going left
-      if(rightDirection != -1){
-        rightDirection = -1;
-        rightChanges++;
-      }
-    }else{  //going right
-      if(rightDirection != 1){
-        rightDirection = 1;
-        rightChanges++;
-      }
-    }
-  }
-  //cout << "right changes" << rightChanges << endl;
 
 
   //Classify sound and bad curves
-  if(leftChanges > max_dir_changes || leftBarycenters.size()<6){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
+  if(leftChanges > max_dir_changes || leftBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
     left_ok = false;
   }else{
     if(some_left){
-      if(computeRmse(fittedLeft,lastOkFittedLeft) > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
+      if(leftRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
         left_ok = false;
       }else{  //Se ho pochi cambi e rmse basso allora ok
         left_ok = true;
@@ -553,11 +545,11 @@ else {//Se ho right
       left_ok = true;
     }
   }
-  if(rightChanges > max_dir_changes || rightBarycenters.size()<6){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
+  if(rightChanges > max_dir_changes || rightBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
     right_ok = false;
   }else{
     if(some_right){
-      if(computeRmse(fittedRight,lastOkFittedRight) > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
+      if(rightRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
         right_ok = false;
       }else{  //Se ho pochi cambi e rmse basso allora ok
         right_ok = true;
@@ -566,47 +558,48 @@ else {//Se ho right
       right_ok = true;
     }
   }
-  cout << "left ok " << left_ok << ", " << leftChanges << endl;
 
 
   //Update trace curves
   if(left_ok){
-    sound_left++;
-    bad_left = 0;
+    left_ok_series++;
+    left_bad_series = 0;
     lastOkFittedLeft = fittedLeft;
     lastOkLeftRectCenters = leftRectCenters;
   }else{
-    sound_left = 0;
-    bad_left++;
+    left_ok_series = 0;
+    left_bad_series++;
   }
   if(right_ok){
-    sound_right++;
-    bad_right = 0;
+    right_ok_series++;
+    right_bad_series = 0;
     lastOkFittedRight = fittedRight;
     lastOkRightRectCenters = rightRectCenters;
   }else{
-    sound_right = 0;
-    bad_right++;
+    right_ok_series = 0;
+    right_bad_series++;
   }
 
-  if(sound_right > min_good_curves){
+  //Update reference states and curves
+  if(right_ok_series > min_good_curves){
     if(!some_right){
       some_right = true;
       mask_curve_right = fittedRight;
     }
   }
-  if(sound_left > min_good_curves){
+  if(left_ok_series > min_good_curves){
     if(!some_left){
       some_left = true;
       mask_curve_left = fittedLeft;
     }
   }
 
-  //Reset reference curve
-  if(bad_left > max_bad_curves){
+
+  //Reset reference states
+  if(left_bad_series > max_bad_curves){
     some_left = false;
   }
-  if(bad_right > max_bad_curves){
+  if(right_bad_series > max_bad_curves){
     some_right = false;
   }
 
@@ -614,7 +607,7 @@ else {//Se ho right
 
 
 
-  //rectangles = reversePerspectiveTransform(rectangles);
+  rectangles = reversePerspectiveTransform(rectangles);
 
   //Display Image
   displayImg("Wip",wip);
