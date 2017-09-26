@@ -607,7 +607,7 @@ else {//Se ho right
 
 
 
-  rectangles = reversePerspectiveTransform(rectangles);
+  //rectangles = reversePerspectiveTransform(rectangles);
 
   //Display Image
   displayImg("Wip",wip);

@@ -13,8 +13,25 @@ https://mega.nz/#!BuoF0bqT!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
 
 Up to now the algorithm provides:
 - Gaussian Blur
-- Perspective Transform*
-- Adaptive binary thresholding
-
-
-*For the time being the perspective transform points are calibrated with respect to the video "challenge.mp4"
+- Perspective Transform:
+  For the time being the perspective transform points are hard coded with respect to the video "challenge.mp4",
+  later on we will try to find and track the vanishing point and extract the four points from it.
+- Adaptive binary thresholding:
+  We tried different solutions: the method 'threshold' with OTSU threshold, or 'adaptiveThreshold' with
+  ADAPTIVE_THRESH_GAUSSIAN_C threshold, the latter seems to work better.
+- Lanes histogram:
+  Considering a smaller area of the frame, we compute the accumulation of the white pixels in the x-axis
+- Sliding windows:
+  When we have no previous curves, starting from the maximum of the histogram we're putting some windows
+  on top of each one, computing the barycenter (if they have one) and center the window on it.
+  When we have already a curve, we start placing the window as the previous and then center them on their
+  actual barycenters (if they have one)
+- Lane classification
+  We're trying different solutions:
+  - Computing the RMSE between the current curve and the last one; if for n frame the RMSE is acceptable,
+    the lane may be good
+  - Counting the number of changes in direction that a curve shows (within certain tolerances): if a curve
+    in one frame shows more than n changes, the lane is bad
+- Adaptive curve mask
+  When a good lane is detected, we compute a mask shaped on it and use it to refine the area in which
+  to look for the next lanes, and we keep the same until a bad curve is detected; then, we reset.
