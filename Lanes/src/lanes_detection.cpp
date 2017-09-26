@@ -21,10 +21,12 @@ using namespace cv;
 #define max_dir_changes 5
 #define straight_tolerance_ratio 80
 #define max_rmse_ratio 70
-#define max_bad_curves 0
+#define max_bad_curves 2
 #define min_good_curves 1
 #define min_barycenters 5 //in realtà andrebbe messo come ratio e diviso per n_rect
 #define next_bary_max_distance 50 //anche qui va messo ratio
+#define rmse_tolerance 20
+#define min_similar_curves 3
 
 const Scalar rect_color = Scalar(0,0,255);
 
@@ -113,7 +115,6 @@ float movingAverage(float avg, float new_sample){
 }
 
 Point computeBarycenter(vector<Point> points, Mat mat){
-  cout << "********************** rect" << endl;
   int totWeight = 0;
   Point bar;
   bar.y = 0;
@@ -314,6 +315,14 @@ vector<Point> rightBarycenters; //servono fuori per fare il fitting
 vector<Point> leftBarycenters;
 vector<Point> lastOkRightRectCenters;
 vector<Point> lastOkLeftRectCenters;
+//umbi
+vector<Point> lastFittedRight;
+vector<Point> lastFittedLeft;
+//vector<Point> goodFittedRight;
+//vector<Point> goodFittedLeft;
+int right_similar_series = 0;
+int left_similar_series = 0;
+
 bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
 bool right_ok = false;
 bool some_left = false;
@@ -322,10 +331,10 @@ int left_bad_series = 0;
 int right_bad_series = 0;
 int right_ok_series = 0;
 int left_ok_series = 0;
+
 for(;;){
   Mat src, wip;
   //Capture frame
-  cout << "*********************************** frame" << endl;
   cap >> src;
   int width = src.size().width;
   int height = src.size().height;
@@ -396,7 +405,7 @@ for(;;){
         //Compute barycenters and rectangle centers
         Point nextLeftCenter = Point();
         Point leftBar = computeBarycenter(left_rect ,wip);
-        if(leftBar.x!=-1 && leftBar.y!=-1 && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance){ //if no line is detected no barycenter is added
+        if(leftBar.x!=-1 && leftBar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance
           //move rectangle
           left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
           leftRectCenters[i].x = leftBar.x;
@@ -428,8 +437,8 @@ for(;;){
       vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
 
       Point leftBar = computeBarycenter(left_rect ,wip);
-      if(leftBar.x!=-1 && leftBar.y!=-1 && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance){ //if no line is detected no barycenter is added
-                                                                                                          //and if the barycenters are way too far from each other
+      if(leftBar.x!=-1 && leftBar.y!=-1 ){ //if no line is detected no barycenter is added
+                                          //and if the barycenters are way too far from each other   && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance
         //move rectangle
         left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
 
@@ -463,7 +472,7 @@ for(;;){
         //Compute barycenters and rectangle centers
         Point nextRightCenter = Point();
         Point rightBar = computeBarycenter(right_rect ,wip);
-        if(rightBar.x!=-1 && rightBar.y!=-1 && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance){
+        if(rightBar.x!=-1 && rightBar.y!=-1 ){ //&& abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance
           //move rectangle
           right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
           rightRectCenters[i].x = rightBar.x;
@@ -491,7 +500,7 @@ else {//Se ho right
       vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
 
       Point rightBar = computeBarycenter(right_rect ,wip);
-      if(rightBar.x!=-1 && rightBar.y!=-1 && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance){
+      if(rightBar.x!=-1 && rightBar.y!=-1){ // && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance
         //move rectangle
         right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
         rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
@@ -527,11 +536,84 @@ else {//Se ho right
   int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
   //Compute rmse between current curve and last one
   int leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
-  int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
+  //int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
+
+
+  //if there is NOT a good curve look for a minimum number of similar curve in a row
+  //if there is a good curve compare the current curve with the good one
+  //right
+  cout << "*** frame" << endl;
+  if(!some_right){//if there is not a good curve
+    cout << "no good line" << endl;
+    if(lastFittedRight.size() > 0 && fittedRight.size() > 0){ // check if there is a curve in the last frame
+      cout << "there are curves in the last frame and in the current" << endl;
+      int rmse_last_frames = computeRmse(fittedRight, lastFittedRight); //difference between last frame and current frame curves
+      cout << "rmse_last_frames: " << rmse_last_frames << endl;
+      if(rmse_last_frames < rmse_tolerance){
+        right_similar_series++;
+        cout << "right_similar_series: " << right_similar_series << endl;
+      }else{
+        right_similar_series = 0;
+      }
+      lastFittedRight = fittedRight;
+
+      if(right_similar_series >= min_similar_curves){ //check how many similar curves in a row
+        cout << "there are a min number of similar curves in a row" << endl;
+        lastOkFittedRight = fittedRight;
+        lastOkRightRectCenters = rightRectCenters;
+        some_right = true;
+        right_similar_series = 0;
+      }
+    }else{//if there is NOT curve in the last frame
+      if(fittedRight.size() > 0){
+        lastFittedRight = fittedRight;
+      }
+    }
+  }else{ //if there is a good curve
+    cout << "there is a good curve" << endl;
+    int right_rmse = computeRmse(fittedRight, lastOkFittedRight); //compare current curve with the good one
+    cout << "right_rmse: " << right_rmse << endl;
+    if(right_rmse < rmse_tolerance){
+      cout << "current curve is similar to good curve" << endl;
+      lastOkFittedRight = fittedRight;
+      lastOkRightRectCenters = rightRectCenters;
+      right_bad_series = 0;
+      lastFittedRight = lastOkFittedRight;
+    }else{
+      right_bad_series++;
+      cout << "current curve is not similar to good curve - right_bad_series: " << right_bad_series << endl;
+      right_rmse = computeRmse(fittedRight, lastFittedRight); //compare current curve with last frame curve
+      if(right_rmse < rmse_tolerance){
+        right_similar_series++;
+        cout << "current curve is similar to last curve - right_similar_series: " << right_similar_series << endl;
+      }else{
+        right_similar_series = 0;
+        cout << "current curve is not even similar to last curve" << endl;
+      }
+      lastFittedRight = fittedRight;
+      if(right_similar_series >= min_similar_curves){ //check how many similar curves in a row
+        cout << "there are a min number of similar curves in a row" << endl;
+        lastOkFittedRight = fittedRight;
+        lastOkRightRectCenters = rightRectCenters;
+        right_similar_series = 0;
+      }
+    }
+  }
+  //left
+
+
+  //Reset reference states
+  if(left_bad_series > max_bad_curves){
+    some_left = false;
+  }
+  if(right_bad_series > max_bad_curves){
+    some_right = false;
+  }
 
 
 
   //Classify sound and bad curves
+  /*
   if(leftChanges > max_dir_changes || leftBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
     left_ok = false;
   }else{
@@ -602,7 +684,7 @@ else {//Se ho right
   if(right_bad_series > max_bad_curves){
     some_right = false;
   }
-
+  */
 
 
 
@@ -610,7 +692,7 @@ else {//Se ho right
   //rectangles = reversePerspectiveTransform(rectangles);
 
   //Display Image
-  displayImg("Wip",wip);
+  //displayImg("Wip",wip);
   displayImg("Rectangles",rectangles);
 
   waitKey(0);
