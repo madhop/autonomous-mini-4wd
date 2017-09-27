@@ -160,6 +160,12 @@ for(;;){
   vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
   vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
+  /*if(some_left){
+    polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
+  }
+  if(some_right){
+    polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
+  }*/
   polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
   polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
@@ -178,98 +184,23 @@ for(;;){
   //if there is NOT a good curve look for a minimum number of similar curve in a row
   //if there is a good curve compare the current curve with the good one
   //right
-  cout << "* frame" << endl;
+  cout << "***** frame" << endl;
+  cout << "* Right" << endl;
   int classifyRight = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters);
   //left
+  cout << "* Left" << endl;
   int classifyLeft = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters);
 
 
   //Reset reference states
   if(left_bad_series > max_bad_curves){
     some_left = false;
+    lastOkFittedLeft = vector<Point>();
   }
   if(right_bad_series > max_bad_curves){
     some_right = false;
+    lastOkFittedRight = vector<Point>();
   }
-
-
-
-  //Classify sound and bad curves
-  /*
-  if(leftChanges > max_dir_changes || leftBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
-  left_ok = false;
-}else{
-if(some_left){
-if(leftRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
-left_ok = false;
-}else{  //Se ho pochi cambi e rmse basso allora ok
-left_ok = true;
-}
-}else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
-left_ok = true;
-}
-}
-if(rightChanges > max_dir_changes || rightBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
-right_ok = false;
-}else{
-if(some_right){
-if(rightRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
-right_ok = false;
-}else{  //Se ho pochi cambi e rmse basso allora ok
-right_ok = true;
-}
-}else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
-right_ok = true;
-}
-}
-
-
-//Update trace curves
-if(left_ok){
-left_ok_series++;
-left_bad_series = 0;
-lastOkFittedLeft = fittedLeft;
-lastOkLeftRectCenters = leftRectCenters;
-}else{
-left_ok_series = 0;
-left_bad_series++;
-}
-if(right_ok){
-right_ok_series++;
-right_bad_series = 0;
-lastOkFittedRight = fittedRight;
-lastOkRightRectCenters = rightRectCenters;
-}else{
-right_ok_series = 0;
-right_bad_series++;
-}
-
-//Update reference states and curves
-if(right_ok_series > min_good_curves){
-if(!some_right){
-some_right = true;
-mask_curve_right = fittedRight;
-}
-}
-if(left_ok_series > min_good_curves){
-if(!some_left){
-some_left = true;
-mask_curve_left = fittedLeft;
-}
-}
-
-
-//Reset reference states
-if(left_bad_series > max_bad_curves){
-some_left = false;
-}
-if(right_bad_series > max_bad_curves){
-some_right = false;
-}
-*/
-
-
-
 
 //rectangles = reversePerspectiveTransform(rectangles);
 
@@ -285,6 +216,14 @@ return 0;
 }
 
 //FUNCTIONS
+
+void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles){ //draw the rectangles
+  line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[2], rect_points[3], rect_color, thickness, CV_AA);
+  line( rectangles, rect_points[3], rect_points[0], rect_color, thickness, CV_AA);
+}
+
 vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given the center of the rectangle compute the 4 vertex
   vector<Point> points;
   points.push_back(Point(center.x - rect_width/2, center.y + rect_height/2));
@@ -552,6 +491,7 @@ int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_ser
         lastOkRectCenters = rectCenters;
         some_curve = true;
         similar_series = 0;
+        curve_bad_series = 0;
       }
     }else{//if there is NOT curve in the last frame
       if(fittedCurve.size() > 0){
@@ -592,7 +532,7 @@ int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_ser
 }
 
 int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, vector<Point> &barycenters, Mat rectangles, vector<Point> &lastOkRectCenters){ //pos: 0=left, 1=right
-  if(some_curve == false){//if there is a good curve
+  if(some_curve == false){
     rectCenters = vector<Point>();
     //First rectangle
     int firstX = findHistAcc(wip, pos); //0 means left
@@ -632,7 +572,7 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat w
   }
 
 }
-else { //Se ho left
+else {
 
   rectCenters = lastOkRectCenters;
   for(int i=0;i<n_rect;i++){
