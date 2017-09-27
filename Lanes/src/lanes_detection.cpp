@@ -30,6 +30,261 @@ using namespace cv;
 
 const Scalar rect_color = Scalar(0,0,255);
 
+//PROTOTYPES
+vector<Point> computeRect(Point center, int rect_width,int rect_height);
+void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
+void displayImg(const char* window_name,Mat mat);
+Mat perspectiveTransform(Mat mat);
+Mat reversePerspectiveTransform(Mat mat);
+float movingAverage(float avg, float new_sample);
+Point computeBarycenter(vector<Point> points, Mat mat);
+vector<Point> polyFit(vector<Point> points,Mat mat);
+int findHistAcc(Mat mat, int pos);
+Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
+float computeRmse(vector<Point> curve1, vector<Point> curve2);
+int dirChanges(vector<Point> points, int tolerance);
+int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters);
+int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, vector<Point> &barycenters, Mat rectangles, vector<Point> &lastOkRectCenters); //pos: 0=left, 1=right
+
+/** @function main */
+int main( int argc, char** argv ){
+  //Load video
+  VideoCapture cap( argv[1]); // open the default camera
+  if(!cap.isOpened()){  // check if we succeeded
+    return -1;
+  }
+  /*
+  //Write video
+  VideoWriter outputVideo;
+  outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
+  if (!outputVideo.isOpened())
+  {
+  cout  << "Could not open the output video" << endl;
+  return -1;
+}
+*/
+/*
+//Load image
+src = imread( argv[1] ); /// Load an image
+if( !src.data ){
+return -1;
+}
+*/
+vector<Point> mask_curve_left;
+vector<Point> mask_curve_right;
+vector<Point> lastOkFittedRight;
+vector<Point> lastOkFittedLeft;
+vector<Point> rightBarycenters; //servono fuori per fare il fitting
+vector<Point> leftBarycenters;
+vector<Point> lastOkRightRectCenters;
+vector<Point> lastOkLeftRectCenters;
+//umbi
+vector<Point> lastFittedRight;
+vector<Point> lastFittedLeft;
+//vector<Point> goodFittedRight;
+//vector<Point> goodFittedLeft;
+int right_similar_series = 0;
+int left_similar_series = 0;
+
+bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
+bool right_ok = false;
+bool some_left = false;
+bool some_right = false;
+int left_bad_series = 0;
+int right_bad_series = 0;
+int right_ok_series = 0;
+int left_ok_series = 0;
+
+for(;;){
+  Mat src, wip;
+  //Capture frame
+  cap >> src;
+  int width = src.size().width;
+  int height = src.size().height;
+  const int rect_width = width/rect_width_ratio;
+  const int rect_offset = height/rect_offset_ratio;
+  const int rect_height = (height - rect_offset)/n_rect;
+  const int straight_tolerance = width/straight_tolerance_ratio;
+  const int max_rmse = height/max_rmse_ratio; //height perchè la parabola orizzontale è calcolata da x a y
+  wip = src;
+
+  cvtColor( wip, wip, CV_BGR2GRAY );
+
+  for ( int i = 1; i < blur_kernel ; i = i + 2 ){
+    GaussianBlur( wip, wip, Size( i, i ), 0, 0 );
+  }
+
+  //Canny( wip, wip, canny_low_threshold, canny_low_threshold*canny_high_threshold_ratio, canny_kernel );
+
+  wip = perspectiveTransform(wip);
+
+
+  //inverse
+  /*
+  // Get the Perspective Transform Matrix i.e. lambda
+  lambda = getPerspectiveTransform( outPoints, inPoints );
+  // Apply the Perspective Transform just found to the src image
+  warpPerspective(wip,wip,lambda,wip.size() );
+  */
+
+  //Color Filtering
+  //White Filter
+  inRange(wip, Scalar(150, 150, 150), Scalar(255, 255, 255), wip);
+  //cvtColor( wip, wip, CV_BGR2GRAY );
+
+  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
+  //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
+
+
+
+  //Curve Mask
+
+  if(some_right && some_left){
+    wip = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
+  }
+
+
+  Mat rectangles = wip;
+  cvtColor( rectangles, rectangles, CV_GRAY2BGR );
+
+  rightBarycenters = vector<Point>();
+  leftBarycenters = vector<Point>();
+  vector<Point> leftRectCenters;
+  vector<Point> rightRectCenters;
+  //Initialize rectangles
+  int findLeftCurve =  findCurvePoints(some_left, leftRectCenters, 0, wip, width, height, rect_offset, rect_height, rect_width, leftBarycenters, rectangles, lastOkLeftRectCenters);
+  int findRightCurve =  findCurvePoints(some_right, rightRectCenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rightBarycenters, rectangles, lastOkRightRectCenters);
+  //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
+  // x = beta_2*y^2 + beta_1*y + beta_0
+  vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
+  vector<Point> fittedRight = polyFit(rightBarycenters,wip);
+
+  polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
+  polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
+  polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
+  polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
+
+
+  //Classification parameters
+  //Compute changes in direction
+  int leftChanges = dirChanges(leftBarycenters,straight_tolerance);
+  int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
+  //Compute rmse between current curve and last one
+  //int leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
+  //int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
+
+
+  //if there is NOT a good curve look for a minimum number of similar curve in a row
+  //if there is a good curve compare the current curve with the good one
+  //right
+  cout << "* frame" << endl;
+  int classifyRight = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters);
+  //left
+  int classifyLeft = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters);
+
+
+  //Reset reference states
+  if(left_bad_series > max_bad_curves){
+    some_left = false;
+  }
+  if(right_bad_series > max_bad_curves){
+    some_right = false;
+  }
+
+
+
+  //Classify sound and bad curves
+  /*
+  if(leftChanges > max_dir_changes || leftBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
+  left_ok = false;
+}else{
+if(some_left){
+if(leftRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
+left_ok = false;
+}else{  //Se ho pochi cambi e rmse basso allora ok
+left_ok = true;
+}
+}else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
+left_ok = true;
+}
+}
+if(rightChanges > max_dir_changes || rightBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
+right_ok = false;
+}else{
+if(some_right){
+if(rightRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
+right_ok = false;
+}else{  //Se ho pochi cambi e rmse basso allora ok
+right_ok = true;
+}
+}else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
+right_ok = true;
+}
+}
+
+
+//Update trace curves
+if(left_ok){
+left_ok_series++;
+left_bad_series = 0;
+lastOkFittedLeft = fittedLeft;
+lastOkLeftRectCenters = leftRectCenters;
+}else{
+left_ok_series = 0;
+left_bad_series++;
+}
+if(right_ok){
+right_ok_series++;
+right_bad_series = 0;
+lastOkFittedRight = fittedRight;
+lastOkRightRectCenters = rightRectCenters;
+}else{
+right_ok_series = 0;
+right_bad_series++;
+}
+
+//Update reference states and curves
+if(right_ok_series > min_good_curves){
+if(!some_right){
+some_right = true;
+mask_curve_right = fittedRight;
+}
+}
+if(left_ok_series > min_good_curves){
+if(!some_left){
+some_left = true;
+mask_curve_left = fittedLeft;
+}
+}
+
+
+//Reset reference states
+if(left_bad_series > max_bad_curves){
+some_left = false;
+}
+if(right_bad_series > max_bad_curves){
+some_right = false;
+}
+*/
+
+
+
+
+//rectangles = reversePerspectiveTransform(rectangles);
+
+//Display Image
+//displayImg("Wip",wip);
+displayImg("Rectangles",rectangles);
+
+waitKey(0);
+//if(waitKey(30) >= 0) break;
+//outputVideo << src;
+}
+return 0;
+}
+
+//FUNCTIONS
 vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given the center of the rectangle compute the 4 vertex
   vector<Point> points;
   points.push_back(Point(center.x - rect_width/2, center.y + rect_height/2));
@@ -37,13 +292,6 @@ vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given
   points.push_back(Point(center.x + rect_width/2, center.y - rect_height/2));
   points.push_back(Point(center.x + rect_width/2, center.y + rect_height/2 ));
   return points;
-}
-
-void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles){ //draw the rectangles
-  line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
-  line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
-  line( rectangles, rect_points[2], rect_points[3], rect_color, thickness, CV_AA);
-  line( rectangles, rect_points[3], rect_points[0], rect_color, thickness, CV_AA);
 }
 
 void displayImg(const char* window_name,Mat mat){
@@ -143,13 +391,13 @@ Point computeBarycenter(vector<Point> points, Mat mat){
     bar.x += j*weight;
   }
   if(totWeight>tot_min_weight){//xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added or even if it's just a random bunch of pixels
-    bar.y /= totWeight;
-    bar.x /= totWeight;
-  }else{
-    bar.x = -1;
-    bar.y = -1;
-  }
-  return bar;
+  bar.y /= totWeight;
+  bar.x /= totWeight;
+}else{
+  bar.x = -1;
+  bar.y = -1;
+}
+return bar;
 }
 
 vector<Point> polyFit(vector<Point> points,Mat mat){
@@ -283,421 +531,133 @@ int dirChanges(vector<Point> points, int tolerance){
   return changes;
 }
 
-/** @function main */
-int main( int argc, char** argv ){
-  //Load video
-  VideoCapture cap( argv[1]); // open the default camera
-  if(!cap.isOpened()){  // check if we succeeded
-    return -1;
-  }
-  /*
-  //Write video
-  VideoWriter outputVideo;
-  outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
-  if (!outputVideo.isOpened())
-  {
-    cout  << "Could not open the output video" << endl;
-    return -1;
-  }
-  */
-  /*
-  //Load image
-  src = imread( argv[1] ); /// Load an image
-  if( !src.data ){
-  return -1;
-}
-*/
-vector<Point> mask_curve_left;
-vector<Point> mask_curve_right;
-vector<Point> lastOkFittedRight;
-vector<Point> lastOkFittedLeft;
-vector<Point> rightBarycenters; //servono fuori per fare il fitting
-vector<Point> leftBarycenters;
-vector<Point> lastOkRightRectCenters;
-vector<Point> lastOkLeftRectCenters;
-//umbi
-vector<Point> lastFittedRight;
-vector<Point> lastFittedLeft;
-//vector<Point> goodFittedRight;
-//vector<Point> goodFittedLeft;
-int right_similar_series = 0;
-int left_similar_series = 0;
-
-bool left_ok = false;  //serve per non fare la maschera al primo ciclo quando non ho ancora le linee
-bool right_ok = false;
-bool some_left = false;
-bool some_right = false;
-int left_bad_series = 0;
-int right_bad_series = 0;
-int right_ok_series = 0;
-int left_ok_series = 0;
-
-for(;;){
-  Mat src, wip;
-  //Capture frame
-  cap >> src;
-  int width = src.size().width;
-  int height = src.size().height;
-  const int rect_width = width/rect_width_ratio;
-  const int rect_offset = height/rect_offset_ratio;
-  const int rect_height = (height - rect_offset)/n_rect;
-  const int straight_tolerance = width/straight_tolerance_ratio;
-  const int max_rmse = height/max_rmse_ratio; //height perchè la parabola orizzontale è calcolata da x a y
-  wip = src;
-
-  cvtColor( wip, wip, CV_BGR2GRAY );
-
-  for ( int i = 1; i < blur_kernel ; i = i + 2 ){
-    GaussianBlur( wip, wip, Size( i, i ), 0, 0 );
-  }
-
-  //Canny( wip, wip, canny_low_threshold, canny_low_threshold*canny_high_threshold_ratio, canny_kernel );
-
-  wip = perspectiveTransform(wip);
-
-
-  //inverse
-  /*
-  // Get the Perspective Transform Matrix i.e. lambda
-  lambda = getPerspectiveTransform( outPoints, inPoints );
-  // Apply the Perspective Transform just found to the src image
-  warpPerspective(wip,wip,lambda,wip.size() );
-  */
-
-  //Color Filtering
-  //White Filter
-  inRange(wip, Scalar(150, 150, 150), Scalar(255, 255, 255), wip);
-  //cvtColor( wip, wip, CV_BGR2GRAY );
-
-  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
-  //threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
-  //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
-
-
-
-  //Curve Mask
-  if(some_right && some_left){
-    wip = curve_mask(mask_curve_right,mask_curve_left,wip,mask_offset);
-  }
-
-  Mat rectangles = wip;
-  cvtColor( rectangles, rectangles, CV_GRAY2BGR );
-
-  rightBarycenters = vector<Point>();
-  leftBarycenters = vector<Point>();
-  vector<Point> leftRectCenters;
-  vector<Point> rightRectCenters;
-  //Initialize rectangles
-  if(some_left == false){//Se non ho left
-    mask_curve_left = vector<Point>();
-    leftRectCenters = vector<Point>();
-    //First rectangle
-    int leftFirstX = findHistAcc(wip,0); //0 indica sinistra
-    if(leftFirstX == -1){  //in caso non trovi il massimo
-      leftFirstX = width/4;
-    }
-
-      leftRectCenters.push_back(Point(leftFirstX, height - rect_offset - rect_height/2));
-      //Other rectangles
-      for(int i=0;i<n_rect;i++){
-        //Compute left rectangle
-        vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
-        //Compute barycenters and rectangle centers
-        Point nextLeftCenter = Point();
-        Point leftBar = computeBarycenter(left_rect ,wip);
-        if(leftBar.x!=-1 && leftBar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance
-          //move rectangle
-          left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
-          leftRectCenters[i].x = leftBar.x;
-
-          leftBarycenters.push_back(leftBar);
-          circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-          nextLeftCenter.x = leftBar.x;
-        }
-        else{
-          nextLeftCenter.x = leftRectCenters[i].x;
-        }
-        nextLeftCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
-
-
-        if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
-          leftRectCenters.push_back(nextLeftCenter);
-        }
-
-        //Draw left rectangle
-        drawRect(left_rect, rect_color, rect_thickness, rectangles);
-      }
-
-  }
-  else { //Se ho left
-
-    leftRectCenters = lastOkLeftRectCenters;
-    for(int i=0;i<n_rect;i++){
-      //Compute left rectangle
-      vector<Point> left_rect = computeRect(leftRectCenters[i], rect_width, rect_height);
-
-      Point leftBar = computeBarycenter(left_rect ,wip);
-      if(leftBar.x!=-1 && leftBar.y!=-1 ){ //if no line is detected no barycenter is added
-                                          //and if the barycenters are way too far from each other   && abs(leftBar.x - leftRectCenters[i].x)< next_bary_max_distance
-        //move rectangle
-        left_rect = computeRect(Point(leftBar.x, leftRectCenters[i].y), rect_width, rect_height);
-
-        leftRectCenters[i].x = leftBar.x; //comment for fixed rectangles
-        circle( rectangles, leftBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-        leftBarycenters.push_back(leftBar);
-        /*if(i<n_rect-1){ // update for next rectangle as well
-          leftRectCenters[i+1].x = leftRectCenters[i].x;
-        }*/
-      }
-      /*if(i<n_rect-1){ // update for next rectangle as well
-        leftRectCenters[i+1].x = leftRectCenters[i].x;
-      }*/
-      //Draw left rectangle
-      drawRect(left_rect, rect_color, rect_thickness, rectangles);
-  }
-}
-  if(some_right == false){//Se non ho right
-    mask_curve_right = vector<Point>();
-    rightRectCenters = vector<Point>();
-    //First rectangle
-    int rightFirstX = findHistAcc(wip,1); // 1 indica destra
-    if(rightFirstX == -1){
-      rightFirstX = width*3/4;
-    }
-      rightRectCenters.push_back(Point(rightFirstX, height - rect_offset - rect_height/2));
-      //Other rectangles
-      for(int i=0;i<n_rect;i++){
-        //Compute right rectangle
-        vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
-        //Compute barycenters and rectangle centers
-        Point nextRightCenter = Point();
-        Point rightBar = computeBarycenter(right_rect ,wip);
-        if(rightBar.x!=-1 && rightBar.y!=-1 ){ //&& abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance
-          //move rectangle
-          right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
-          rightRectCenters[i].x = rightBar.x;
-
-          rightBarycenters.push_back(rightBar);
-          circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-          nextRightCenter.x = rightBar.x;
-        }else{
-          nextRightCenter.x = rightRectCenters[i].x;
-        }
-        nextRightCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
-
-        if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
-          rightRectCenters.push_back(nextRightCenter);
-        }
-        //Draw right rectangle
-        drawRect(right_rect, rect_color, rect_thickness, rectangles);
-      }
-  }
-else {//Se ho right
-
-   rightRectCenters = lastOkRightRectCenters;
-    for(int i=0;i<n_rect;i++){
-      //Compute right rectangle
-      vector<Point> right_rect = computeRect(rightRectCenters[i], rect_width, rect_height);
-
-      Point rightBar = computeBarycenter(right_rect ,wip);
-      if(rightBar.x!=-1 && rightBar.y!=-1){ // && abs(rightBar.x - rightRectCenters[i].x)< next_bary_max_distance
-        //move rectangle
-        right_rect = computeRect(Point(rightBar.x, rightRectCenters[i].y), rect_width, rect_height);
-        rightRectCenters[i].x = rightBar.x; //comment for fixed rectangles
-        circle( rectangles, rightBar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-        rightBarycenters.push_back(rightBar);
-        /*
-        if(i<n_rect-1){ // uncomment for updating above only if found barycenter
-          rightRectCenters[i+1].x = rightRectCenters[i].x;
-        }*/
-      }
-      /*if(i<n_rect-1){ // update next rectangle
-        rightRectCenters[i+1].x = rightRectCenters[i].x;
-      }*/
-      //Draw right rectangle
-      drawRect(right_rect, rect_color, rect_thickness, rectangles);
-
-    }
-  }
-  //LEAST SQUARES SECOND ORDER POLYNOMIAL FITTING
-  // x = beta_2*y^2 + beta_1*y + beta_0
-  vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
-  vector<Point> fittedRight = polyFit(rightBarycenters,wip);
-
-  polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
-  polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
-  polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
-  polylines( rectangles, fittedRight, 0, Scalar(0,255,0) ,8,0);
-
-
-  //Classification parameters
-  //Compute changes in direction
-  int leftChanges = dirChanges(leftBarycenters,straight_tolerance);
-  int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
-  //Compute rmse between current curve and last one
-  int leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
-  //int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
-
-
-  //if there is NOT a good curve look for a minimum number of similar curve in a row
-  //if there is a good curve compare the current curve with the good one
-  //right
-  cout << "*** frame" << endl;
-  if(!some_right){//if there is not a good curve
+int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters){
+  if(!some_curve){//if there is not a good curve
     cout << "no good line" << endl;
-    if(lastFittedRight.size() > 0 && fittedRight.size() > 0){ // check if there is a curve in the last frame
+    if(lastFittedCurve.size() > 0 && fittedCurve.size() > 0){ // check if there is a curve in the last frame
       cout << "there are curves in the last frame and in the current" << endl;
-      int rmse_last_frames = computeRmse(fittedRight, lastFittedRight); //difference between last frame and current frame curves
-      cout << "rmse_last_frames: " << rmse_last_frames << endl;
-      if(rmse_last_frames < rmse_tolerance){
-        right_similar_series++;
-        cout << "right_similar_series: " << right_similar_series << endl;
+      int rmse_last_frame = computeRmse(fittedCurve, lastFittedCurve); //difference between last frame and current frame curves
+      cout << "rmse_last_frame: " << rmse_last_frame << endl;
+      if(rmse_last_frame < rmse_tolerance){
+        similar_series++;
+        cout << "similar_series: " << similar_series << endl;
       }else{
-        right_similar_series = 0;
+        similar_series = 0;
       }
-      lastFittedRight = fittedRight;
+      lastFittedCurve = fittedCurve;
 
-      if(right_similar_series >= min_similar_curves){ //check how many similar curves in a row
+      if(similar_series >= min_similar_curves){ //check how many similar curves in a row
         cout << "there are a min number of similar curves in a row" << endl;
-        lastOkFittedRight = fittedRight;
-        lastOkRightRectCenters = rightRectCenters;
-        some_right = true;
-        right_similar_series = 0;
+        lastOkFittedCurve = fittedCurve;
+        lastOkRectCenters = rectCenters;
+        some_curve = true;
+        similar_series = 0;
       }
     }else{//if there is NOT curve in the last frame
-      if(fittedRight.size() > 0){
-        lastFittedRight = fittedRight;
+      if(fittedCurve.size() > 0){
+        lastFittedCurve = fittedCurve;
       }
     }
   }else{ //if there is a good curve
     cout << "there is a good curve" << endl;
-    int right_rmse = computeRmse(fittedRight, lastOkFittedRight); //compare current curve with the good one
-    cout << "right_rmse: " << right_rmse << endl;
-    if(right_rmse < rmse_tolerance){
+    int rmse = computeRmse(fittedCurve, lastOkFittedCurve); //compare current curve with the good one
+    cout << "rmse: " << rmse << endl;
+    if(rmse < rmse_tolerance){
       cout << "current curve is similar to good curve" << endl;
-      lastOkFittedRight = fittedRight;
-      lastOkRightRectCenters = rightRectCenters;
-      right_bad_series = 0;
-      lastFittedRight = lastOkFittedRight;
+      lastOkFittedCurve = fittedCurve;
+      lastOkRectCenters = rectCenters;
+      curve_bad_series = 0;
+      lastFittedCurve = lastOkFittedCurve;
     }else{
-      right_bad_series++;
-      cout << "current curve is not similar to good curve - right_bad_series: " << right_bad_series << endl;
-      right_rmse = computeRmse(fittedRight, lastFittedRight); //compare current curve with last frame curve
-      if(right_rmse < rmse_tolerance){
-        right_similar_series++;
-        cout << "current curve is similar to last curve - right_similar_series: " << right_similar_series << endl;
+      curve_bad_series++;
+      cout << "current curve is not similar to good curve - curve_bad_series: " << curve_bad_series << endl;
+      rmse = computeRmse(fittedCurve, lastFittedCurve); //compare current curve with last frame curve
+      if(rmse < rmse_tolerance){
+        similar_series++;
+        cout << "current curve is similar to last curve - similar_series: " << similar_series << endl;
       }else{
-        right_similar_series = 0;
+        similar_series = 0;
         cout << "current curve is not even similar to last curve" << endl;
       }
-      lastFittedRight = fittedRight;
-      if(right_similar_series >= min_similar_curves){ //check how many similar curves in a row
+      lastFittedCurve = fittedCurve;
+      if(similar_series >= min_similar_curves){ //check how many similar curves in a row
         cout << "there are a min number of similar curves in a row" << endl;
-        lastOkFittedRight = fittedRight;
-        lastOkRightRectCenters = rightRectCenters;
-        right_similar_series = 0;
+        lastOkFittedCurve = fittedCurve;
+        lastOkRectCenters = rectCenters;
+        similar_series = 0;
       }
     }
   }
-  //left
+  return 0;
+}
 
+int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, vector<Point> &barycenters, Mat rectangles, vector<Point> &lastOkRectCenters){ //pos: 0=left, 1=right
+  if(some_curve == false){//if there is a good curve
+    rectCenters = vector<Point>();
+    //First rectangle
+    int firstX = findHistAcc(wip, pos); //0 means left
+    if(firstX == -1){  //in caso non trovi il massimo
+      firstX = width/4;
+    }
 
-  //Reset reference states
-  if(left_bad_series > max_bad_curves){
-    some_left = false;
-  }
-  if(right_bad_series > max_bad_curves){
-    some_right = false;
-  }
+    rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
+    //Other rectangles
+    for(int i=0;i<n_rect;i++){
+      //Compute left rectangle
+      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
+      //Compute barycenters and rectangle centers
+      Point nextCenter = Point();
+      Point bar = computeBarycenter(rect ,wip);
+      if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(bar.x - rectCenters[i].x)< next_bary_max_distance
+        //move rectangle
+        rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+        rectCenters[i].x = bar.x;
 
-
-
-  //Classify sound and bad curves
-  /*
-  if(leftChanges > max_dir_changes || leftBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
-    left_ok = false;
-  }else{
-    if(some_left){
-      if(leftRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
-        left_ok = false;
-      }else{  //Se ho pochi cambi e rmse basso allora ok
-        left_ok = true;
+        barycenters.push_back(bar);
+        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+        nextCenter.x = bar.x;
       }
-    }else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
-      left_ok = true;
-    }
-  }
-  if(rightChanges > max_dir_changes || rightBarycenters.size() < min_barycenters){ //Se ho troppi cambi di direzione o ho troppi pochi punti è bad
-    right_ok = false;
-  }else{
-    if(some_right){
-      if(rightRmse > 20){ // Se ho pochi cambi di direzione ma ho rmse alto allora è bad
-        right_ok = false;
-      }else{  //Se ho pochi cambi e rmse basso allora ok
-        right_ok = true;
+      else{
+        nextCenter.x = rectCenters[i].x;
       }
-    }else{ //Se ho pochi cambi e nessuna curva di riferimento allora ok
-      right_ok = true;
+      nextCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
+
+
+      if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
+      rectCenters.push_back(nextCenter);
     }
+
+    //Draw left rectangle
+    drawRect(rect, rect_color, rect_thickness, rectangles);
   }
 
+}
+else { //Se ho left
 
-  //Update trace curves
-  if(left_ok){
-    left_ok_series++;
-    left_bad_series = 0;
-    lastOkFittedLeft = fittedLeft;
-    lastOkLeftRectCenters = leftRectCenters;
-  }else{
-    left_ok_series = 0;
-    left_bad_series++;
+  rectCenters = lastOkRectCenters;
+  for(int i=0;i<n_rect;i++){
+    //Compute left rectangle
+    vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
+
+    Point bar = computeBarycenter(rect ,wip);
+    if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added
+      //and if the barycenters are way too far from each other   && abs(bar.x - rectCenters[i].x)< next_bary_max_distance
+      //move rectangle
+      rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+
+      rectCenters[i].x = bar.x; //comment for fixed rectangles
+      circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+      barycenters.push_back(bar);
+      /*if(i<n_rect-1){ // update for next rectangle as well
+      rectCenters[i+1].x = rectCenters[i].x;
+    }*/
   }
-  if(right_ok){
-    right_ok_series++;
-    right_bad_series = 0;
-    lastOkFittedRight = fittedRight;
-    lastOkRightRectCenters = rightRectCenters;
-  }else{
-    right_ok_series = 0;
-    right_bad_series++;
-  }
-
-  //Update reference states and curves
-  if(right_ok_series > min_good_curves){
-    if(!some_right){
-      some_right = true;
-      mask_curve_right = fittedRight;
-    }
-  }
-  if(left_ok_series > min_good_curves){
-    if(!some_left){
-      some_left = true;
-      mask_curve_left = fittedLeft;
-    }
-  }
-
-
-  //Reset reference states
-  if(left_bad_series > max_bad_curves){
-    some_left = false;
-  }
-  if(right_bad_series > max_bad_curves){
-    some_right = false;
-  }
-  */
-
-
-
-
-  //rectangles = reversePerspectiveTransform(rectangles);
-
-  //Display Image
-  //displayImg("Wip",wip);
-  displayImg("Rectangles",rectangles);
-
-  waitKey(0);
-  //if(waitKey(30) >= 0) break;
-  //outputVideo << src;
+  /*if(i<n_rect-1){ // update for next rectangle as well
+  rectCenters[i+1].x = rectCenters[i].x;
+}*/
+//Draw left rectangle
+drawRect(rect, rect_color, rect_thickness, rectangles);
+}
 }
 return 0;
 }
