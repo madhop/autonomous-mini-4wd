@@ -21,12 +21,13 @@ using namespace cv;
 #define max_dir_changes 5
 #define straight_tolerance_ratio 80
 #define max_rmse_ratio 70
-#define max_bad_curves 2
-#define min_good_curves 1
+#define max_bad_curves 5
+#define min_good_curves 3
 #define min_barycenters 5 //in realtà andrebbe messo come ratio e diviso per n_rect
 #define next_bary_max_distance 50 //anche qui va messo ratio
 #define rmse_tolerance 20
 #define min_similar_curves 3
+#define adj_rmse_threshold 30
 
 const Scalar rect_color = Scalar(0,0,255);
 
@@ -43,7 +44,7 @@ int findHistAcc(Mat mat, int pos);
 Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
 float computeRmse(vector<Point> curve1, vector<Point> curve2);
 int dirChanges(vector<Point> points, int tolerance);
-int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters);
+int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters);
 int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, vector<Point> &barycenters, Mat rectangles, vector<Point> &lastOkRectCenters); //pos: 0=left, 1=right
 
 /** @function main */
@@ -118,15 +119,6 @@ for(;;){
 
   wip = perspectiveTransform(wip);
 
-
-  //inverse
-  /*
-  // Get the Perspective Transform Matrix i.e. lambda
-  lambda = getPerspectiveTransform( outPoints, inPoints );
-  // Apply the Perspective Transform just found to the src image
-  warpPerspective(wip,wip,lambda,wip.size() );
-  */
-
   //Color Filtering
   //White Filter
   inRange(wip, Scalar(150, 150, 150), Scalar(255, 255, 255), wip);
@@ -137,12 +129,11 @@ for(;;){
   //threshold(wip,wip,THRESH_OTSU,255,THRESH_OTSU);
 
 
-
+/*
   //Curve Mask
-
   if(some_right && some_left){
     wip = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
-  }
+  }*/
 
 
   Mat rectangles = wip;
@@ -160,12 +151,8 @@ for(;;){
   vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
   vector<Point> fittedRight = polyFit(rightBarycenters,wip);
 
-  /*if(some_left){
-    polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
-  }
-  if(some_right){
-    polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
-  }*/
+
+
   polylines( rectangles, lastOkFittedRight, 0, Scalar(255,0,0) ,8,0);
   polylines( rectangles, lastOkFittedLeft, 0, Scalar(255,0,0) ,8,0);
   polylines( rectangles, fittedLeft, 0, Scalar(0,255,0) ,8,0);
@@ -174,8 +161,8 @@ for(;;){
 
   //Classification parameters
   //Compute changes in direction
-  int leftChanges = dirChanges(leftBarycenters,straight_tolerance);
-  int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
+  //int leftChanges = dirChanges(leftBarycenters,straight_tolerance);
+  //int rightChanges = dirChanges(rightBarycenters,straight_tolerance);
   //Compute rmse between current curve and last one
   //int leftRmse = computeRmse(fittedLeft,lastOkFittedLeft);
   //int rightRmse = computeRmse(fittedRight,lastOkFittedRight);
@@ -186,27 +173,22 @@ for(;;){
   //right
   cout << "***** frame" << endl;
   cout << "* Right" << endl;
-  int classifyRight = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters);
+  int classifyRight = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters);
   //left
   cout << "* Left" << endl;
-  int classifyLeft = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters);
+  int classifyLeft = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters);
 
-
-  //Reset reference states
-  if(left_bad_series > max_bad_curves){
-    some_left = false;
-    lastOkFittedLeft = vector<Point>();
-  }
-  if(right_bad_series > max_bad_curves){
-    some_right = false;
-    lastOkFittedRight = vector<Point>();
-  }
+  cout << "some left: " << some_left << endl;
+  cout << "left bad series: " << left_bad_series << endl;
+  cout << "some right: " << some_right << endl;
+  cout << "right bad series: " << right_bad_series << endl;
 
 //rectangles = reversePerspectiveTransform(rectangles);
 
-//Display Image
+//Display Image<
 //displayImg("Wip",wip);
 displayImg("Rectangles",rectangles);
+displayImg("Wip",wip);
 
 waitKey(0);
 //if(waitKey(30) >= 0) break;
@@ -216,7 +198,6 @@ return 0;
 }
 
 //FUNCTIONS
-
 void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles){ //draw the rectangles
   line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
   line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
@@ -470,65 +451,82 @@ int dirChanges(vector<Point> points, int tolerance){
   return changes;
 }
 
-int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters){
-  if(!some_curve){//if there is not a good curve
-    cout << "no good line" << endl;
-    if(lastFittedCurve.size() > 0 && fittedCurve.size() > 0){ // check if there is a curve in the last frame
-      cout << "there are curves in the last frame and in the current" << endl;
-      int rmse_last_frame = computeRmse(fittedCurve, lastFittedCurve); //difference between last frame and current frame curves
-      cout << "rmse_last_frame: " << rmse_last_frame << endl;
-      if(rmse_last_frame < rmse_tolerance){
-        similar_series++;
-        cout << "similar_series: " << similar_series << endl;
-      }else{
-        similar_series = 0;
-      }
-      lastFittedCurve = fittedCurve;
 
-      if(similar_series >= min_similar_curves){ //check how many similar curves in a row
-        cout << "there are a min number of similar curves in a row" << endl;
-        lastOkFittedCurve = fittedCurve;
-        lastOkRectCenters = rectCenters;
-        some_curve = true;
-        similar_series = 0;
-        curve_bad_series = 0;
+int classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters){
+  //Classify
+  int curve_ok = 0; //0 bad  1 good
+  vector<Point> lower_rects = curveRectCenters;
+  vector<Point> upper_rects = curveRectCenters;
+
+  lower_rects.erase(lower_rects.begin());
+  upper_rects.erase(upper_rects.begin()+curveRectCenters.size()-1);
+
+  float adj_rmse = computeRmse(lower_rects,upper_rects);
+
+  //Absolute classification
+  if(adj_rmse > adj_rmse_threshold){ //trash curve if its barycenters are too far away one from each other with respect to the x
+    curve_ok = 0;
+  }
+  //Relative classification
+  else{
+    if(some_curve){ //If there's a good curve
+      if(computeRmse(fittedCurve,lastOkFittedCurve) < rmse_tolerance){//If there's a good curve and current curve is similar to the good one
+        curve_ok = 1;
+      }else{ //If there's a good curve and current curve is different from the good one
+        if(computeRmse(fittedCurve,lastFittedCurve) < rmse_tolerance){ //If there's good curve, the current curve is different from the good one but similar to the previous
+            curve_similar_series++;
+            if(curve_similar_series >= min_similar_curves){
+              curve_ok = 1;
+            }else{
+              curve_ok = 0;
+            }
+          }
+          else{ //If there's a good curve, the current curve is different from the good and the last curve
+            curve_similar_series = 0;
+            curve_ok = 0;
+          }
+        }
       }
-    }else{//if there is NOT curve in the last frame
-      if(fittedCurve.size() > 0){
-        lastFittedCurve = fittedCurve;
+    else{ //If there's not a good curve
+      if(computeRmse(fittedCurve,lastFittedCurve) < rmse_tolerance){ // If there's no good curve and the current is similar to the previous
+      curve_similar_series++;
+        if(curve_similar_series >= min_similar_curves){
+          curve_ok = 1;
+        }else{
+          curve_ok = 0;
+        }
       }
-    }
-  }else{ //if there is a good curve
-    cout << "there is a good curve" << endl;
-    int rmse = computeRmse(fittedCurve, lastOkFittedCurve); //compare current curve with the good one
-    cout << "rmse: " << rmse << endl;
-    if(rmse < rmse_tolerance){
-      cout << "current curve is similar to good curve" << endl;
-      lastOkFittedCurve = fittedCurve;
-      lastOkRectCenters = rectCenters;
-      curve_bad_series = 0;
-      lastFittedCurve = lastOkFittedCurve;
-    }else{
-      curve_bad_series++;
-      cout << "current curve is not similar to good curve - curve_bad_series: " << curve_bad_series << endl;
-      rmse = computeRmse(fittedCurve, lastFittedCurve); //compare current curve with last frame curve
-      if(rmse < rmse_tolerance){
-        similar_series++;
-        cout << "current curve is similar to last curve - similar_series: " << similar_series << endl;
-      }else{
-        similar_series = 0;
-        cout << "current curve is not even similar to last curve" << endl;
-      }
-      lastFittedCurve = fittedCurve;
-      if(similar_series >= min_similar_curves){ //check how many similar curves in a row
-        cout << "there are a min number of similar curves in a row" << endl;
-        lastOkFittedCurve = fittedCurve;
-        lastOkRectCenters = rectCenters;
-        similar_series = 0;
+      else{ //If there's no good curve and the current is different from the previous
+        curve_similar_series = 0;
+        curve_ok = 0;
       }
     }
   }
-  return 0;
+
+
+  //Update states
+  if(curve_ok == 0){ //Current curve is bad
+    curve_ok_series = 0;
+    curve_bad_series++;
+  }else if(curve_ok == 1){ //Current curve is good
+    curve_ok_series++;
+    curve_bad_series = 0;
+  }
+
+
+  if(curve_ok_series >= min_good_curves){
+    some_curve = true;
+    lastOkFittedCurve = fittedCurve;
+    lastOkCurveRectCenters = curveRectCenters;
+  }
+  if(curve_bad_series > max_bad_curves){
+    some_curve = false;
+    lastOkFittedCurve = vector<Point>();
+    lastOkCurveRectCenters = vector<Point>();
+  }
+
+  lastFittedCurve = fittedCurve;
+  return curve_ok;
 }
 
 int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, vector<Point> &barycenters, Mat rectangles, vector<Point> &lastOkRectCenters){ //pos: 0=left, 1=right
@@ -566,11 +564,9 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, int pos, Mat w
       if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
       rectCenters.push_back(nextCenter);
     }
-
     //Draw left rectangle
     drawRect(rect, rect_color, rect_thickness, rectangles);
   }
-
 }
 else {
 
