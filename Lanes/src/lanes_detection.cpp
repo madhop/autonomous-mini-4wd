@@ -48,7 +48,7 @@ void displayImg(const char* window_name,Mat mat);
 Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
 float movingAverage(float avg, float new_sample);
 Point computeBarycenter(vector<Point> points, Mat mat);
-vector<Point> polyFit(vector<Point> points,Mat mat);
+vector<float> polyFit(vector<Point> points,Mat mat, int order);
 int findHistAcc(Mat mat, int pos);
 Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
 float computeRmse(vector<Point> curve1, vector<Point> curve2);
@@ -56,6 +56,7 @@ int dirChanges(vector<Point> points, int tolerance);
 bool classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters);
 int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> &barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters); //pos: 0=left, 1=right
 vector<Point2f> findPerspectiveInPoints(Mat src);
+vector<Point> computePoly(vector<float> beta, int n_points);
 
 /** @function main */
 int main( int argc, char** argv ){
@@ -116,7 +117,7 @@ for(;;){
 
 
   //*** perspective Transform ***
-  if(true){//counter==0){
+  if(counter==0){
     perspTransfInPoints = findPerspectiveInPoints(src);
   }
   vector<Point2f> perspTransfOutPoints = vector<Point2f>();
@@ -158,8 +159,11 @@ for(;;){
 
   //*** Fit curves ***
   //** Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 **
-  vector<Point> fittedLeft = polyFit(leftBarycenters,wip);
-  vector<Point> fittedRight = polyFit(rightBarycenters,wip);
+  vector<float> leftBeta = polyFit(leftBarycenters,wip, 2);
+  vector<Point> fittedLeft = computePoly(leftBeta, height);
+  vector<float> rightBeta = polyFit(rightBarycenters,wip, 2);
+  vector<Point> fittedRight = computePoly(rightBeta, height);
+
 
   //*** Draw curves ***
   polylines( rectangles, lastOkFittedRight, 0, last_ok_fitted_color, 8, 0);
@@ -173,6 +177,30 @@ for(;;){
 
 
   //*** Inverse perspective transform ***
+  //rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
+
+  //*** Find average curve ***
+
+  vector<float> avgBeta = vector<float>();
+  for(int i=0; i<leftBeta.size(); i++){
+    avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);
+  }
+  vector<Point> avgCurve = computePoly(avgBeta, height);
+  polylines( rectangles, avgCurve, 0, last_ok_fitted_color, 8, 0);
+
+  //Find direction
+  float dir = 0;
+  float u = 0;
+  float p = 0.9;
+  for(int i=0; i<avgCurve.size(); i++){
+    //dir+=avgCurve[i].x;
+    u = p*u + (1-p);
+    dir+=u*avgCurve[i].x;
+  }
+  dir/=avgCurve.size();
+  circle( rectangles, Point(dir,height), 5, Scalar( 0, 255, 0 ),  3, 3 );
+
+
 
   //*** Display Images ***
   displayImg("Rectangles",rectangles);
@@ -292,14 +320,14 @@ Point computeBarycenter(vector<Point> points, Mat mat){
 return bar;
 }
 
-vector<Point> polyFit(vector<Point> points,Mat mat){
-  vector<Point> fittedPoints;
+vector<float> polyFit(vector<Point> points,Mat mat, int order){
+  vector<float> beta = vector<float>();
   int width = mat.size().width;
   int height = mat.size().height;
-  if(points.size() >= 3){
+  if(points.size() > order){
     Mat X = Mat::zeros( points.size(), 1 , CV_32F );
-    Mat y = Mat::zeros( points.size(), 3 , CV_32F );
-    Mat beta; //= Mat::zeros( 3, 1 , CV_32F );
+    Mat y = Mat::zeros( points.size(), order+1 , CV_32F );
+    Mat betaMat; //= Mat::zeros( 3, 1 , CV_32F );
     //matrix Y
     for(int i = 0; i < y.rows; i++){
       for(int j = 0; j < y.cols; j++){
@@ -310,15 +338,28 @@ vector<Point> polyFit(vector<Point> points,Mat mat){
     for(int i = 0; i < X.rows; i++){
       X.at<float>(i,0) = points[i].x;
     }
-    beta = y.inv(DECOMP_SVD)*X;//leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
-    fittedPoints = vector<Point>();
 
-    for(int i = 0; i<height; i++){
-      float fittedX = beta.at<float>(2,0)*pow(i,2)+beta.at<float>(1,0)*i+beta.at<float>(0,0);
-      Point fp = Point(fittedX,i);
-      //circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
-      fittedPoints.push_back(fp);
+    //Least squares
+    betaMat = y.inv(DECOMP_SVD)*X; //leftBeta = ((leftX.t()*leftX).inv()*leftX.t())*leftY;
+    beta = vector<float>();
+    for(int i=0; i < betaMat.size().height; i++){
+      beta.push_back(betaMat.at<float>(i,0));
     }
+
+  }
+  return beta;
+}
+
+vector<Point> computePoly(vector<float> beta, int n_points){
+  vector<Point> fittedPoints = vector<Point>();
+  for(int i = 0; i<n_points; i++){
+    float fittedX = 0;
+    for(int j = 0; j < beta.size(); j++){
+      fittedX += beta[j]*pow(i,j);
+    }
+    Point fp = Point(fittedX,i);
+    //circle( rectangles, fp, 5, Scalar( 0, 255, 0 ),  3, 3 );
+    fittedPoints.push_back(fp);
   }
   return fittedPoints;
 }
@@ -666,7 +707,6 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
     float q = y1-m*x1;
     mq[0] = m; mq[1] = q;
     m_and_q.push_back(mq);
-    cout << m << " " << q << endl;
   }
   //draw lines
   for(int i = 0; i <= m_and_q.size(); i++){
