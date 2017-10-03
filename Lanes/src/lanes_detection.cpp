@@ -1,3 +1,6 @@
+//Aggiunta gestione linee orizzontali mancanti
+//Gestione segmentation fault vanishing points
+//Clustering?
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include <stdlib.h>
@@ -29,8 +32,8 @@ using namespace cv;
 #define min_similar_curves 3
 #define adj_rmse_threshold 30
 #define n_long_lines 20 //number of lines for vanishing point
-#define max_slope 10
-#define min_slope 0.1
+#define max_slope 5
+#define min_slope 0.11
 #define window_width 800
 #define window_height 500
 #define horizon_offset_ratio 15
@@ -113,6 +116,7 @@ for(;;){
   const int rect_height = (height - rect_offset)/n_rect;
   const int straight_tolerance = width/straight_tolerance_ratio;
   const int max_rmse = height/max_rmse_ratio; //height perchè la parabola orizzontale è calcolata da x a y
+
   wip = src;
   cvtColor( wip, wip, CV_BGR2GRAY );
 
@@ -123,15 +127,18 @@ for(;;){
 
 
   //*** perspective Transform ***
-  if(counter==0){
+  vector<Point2f> perspTransfOutPoints;
+  if(true){//counter==0){
     perspTransfInPoints = findPerspectiveInPoints(src);
   }
-  vector<Point2f> perspTransfOutPoints = vector<Point2f>();
-  perspTransfOutPoints.push_back(Point2f( 0,height));
-  perspTransfOutPoints.push_back(Point2f( 0, 0));
-  perspTransfOutPoints.push_back(Point2f( width, 0));
-  perspTransfOutPoints.push_back(Point2f( width, height));
-  wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
+  if(perspTransfInPoints.size()>0){ //If vanishing point has been found
+    perspTransfOutPoints.push_back(Point2f( 0,height));
+    perspTransfOutPoints.push_back(Point2f( 0, 0));
+    perspTransfOutPoints.push_back(Point2f( width, 0));
+    perspTransfOutPoints.push_back(Point2f( width, height));
+    wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
+  }
+
 
 
   //*** Color Filtering ***
@@ -213,17 +220,19 @@ circle( rectangles, Point(width/2,height), 5, Scalar( 0, 100, 255 ),  3, 3 );
 
 
 int turn = computeDirection(dir, width/2);
-if(turn == 1){
+/*if(turn == 1){
   cout << "turn right" << endl;
 }else if(turn == -1){
   cout << "turn left" << endl;
 }else{
   cout << "go straight" << endl;
-}
+}*/
 
 
 //*** Inverse perspective transform ***
-rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
+if(perspTransfInPoints.size() > 0){
+  rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
+}
 
 //*** Display Images ***
 displayImg("Rectangles",rectangles);
@@ -521,9 +530,9 @@ curve_ok = false;
 }
 }
 else{ //If there's not a good curve
-cout << "computeRmse(fittedCurve,lastFittedCurve): " << computeRmse(fittedCurve,lastFittedCurve) << endl;
+//cout << "computeRmse(fittedCurve,lastFittedCurve): " << computeRmse(fittedCurve,lastFittedCurve) << endl;
 if(computeRmse(fittedCurve,lastFittedCurve) < rmse_tolerance){ // If there's no good curve and the current is similar to the previous
-cout << "no good curve, last 2 similar" << endl;
+//cout << "no good curve, last 2 similar" << endl;
 curve_similar_series++;
 if(curve_similar_series >= min_similar_curves){
   curve_ok = true;
@@ -641,6 +650,8 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
   Mat vanishingPointMap = src.clone();
   int height = src.size().height;
   int width = src.size().width;
+  const int horizon_offset = height/horizon_offset_ratio;
+  vector<Point2f> perspTransfInPoints;
 
   cvtColor( vanishingPointMap, vanishingPointMap, CV_BGR2GRAY );
 
@@ -657,10 +668,10 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
   mask_points[0][1] = Point( width, height - height/10);
   mask_points[0][2] = Point( width, height/2);
   mask_points[0][3] = Point( 0, height/2);*/
-  mask_points[0][0] = Point( 0, height);
-  mask_points[0][1] = Point( width, height);
-  mask_points[0][2] = Point( width, 0);
-  mask_points[0][3] = Point( 0, 0);
+  mask_points[0][0] = Point( 0, height - height/10);
+  mask_points[0][1] = Point( width, height - height/10);
+  mask_points[0][2] = Point( width, height/10);
+  mask_points[0][3] = Point( 0, height/10);
   const Point* ppt[1] = { mask_points[0] };
   int npt[] = { 4 };
   Mat mask = Mat::zeros(height,width, CV_8UC1);
@@ -675,11 +686,13 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
   vector<Vec4i> horizontal_lines = vector<Vec4i>();
   HoughLinesP(vanishingPointMap, hough_lines, 1, CV_PI/180, 120, 50, 100 ); //100 50 200
   vanishingPointMap = Mat::zeros(height,width, src.type());
+
+
   //keep only the longest lines
   float longestLen;
   if(hough_lines.size() > n_long_lines){  //if there are more lines than the number of lines that we want
     hough_longest_lines = vector<Vec4i>();
-    for(int j = 0; j <= n_long_lines; j++){
+    for(int j = 0; j < n_long_lines; j++){
       longestLen = 0.0;
       Vec4i longestLine = Vec4i();
       int longest_index;
@@ -690,21 +703,19 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
         int x2 = l[2];
         int y2 = l[3];
         float len = sqrt(pow(y2-y1,2)+pow(x2-x1,2));
-        float slope = (float)(y2-y1)/(x2-x1);
-        if(len > longestLen && abs(slope) < 10 && abs(slope) > 0.1){
+        float slope = (float)(y2-y1)/(x2-x1); //len > longestLen non è longestLen ma il minore tra quelli trovati
+        if(len > longestLen && abs(slope) > min_slope || abs(slope) < max_slope ){//len > longestLen && abs(slope) < 10 && abs(slope) > 0.1){
           longestLine = l;
           longestLen = len;
           longest_index = i;
-        }else if(abs(slope)==0){ //save horizon line for computing trapezium later
+        }else if(abs(slope)==0){ //save horizontal lines for computing trapezium later
           horizontal_lines.push_back(l);
         }
       }
-      if(longestLine[0]!=0 && longestLine[1]!=0 && longestLine[2]!=0 && longestLine[3]!=0){
-        hough_longest_lines.push_back(longestLine);
-        hough_lines.erase(hough_lines.begin() + longest_index);
-      }
+      hough_longest_lines.push_back(longestLine);
+      hough_lines.erase(hough_lines.begin() + longest_index);
     }
-  }else{
+  }else{ //if there's a few lines
     hough_longest_lines = vector<Vec4i>();
     for(int i=0; i<hough_lines.size();i++){
       Vec4i l = hough_lines[i];
@@ -720,10 +731,25 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
       }
     }
   }
+  for(int i = 0; i<hough_longest_lines.size(); i++){
+    cout << "hough_longest_lines: " << hough_longest_lines[i] << endl;
+  }
+  cout << hough_lines.size() << endl;
+  cout << hough_longest_lines.size() << endl;
+  Mat houghmap = Mat::zeros(height,width, src.type());
+  /*for(int i = 0; i < hough_longest_lines.size(); i++){
+      line( houghmap, Point(hough_longest_lines[i][0], hough_longest_lines[i][1]), Point(hough_longest_lines[i][2], hough_longest_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
+  }*/
+  for(int i = 0; i < hough_lines.size(); i++){
+      line( houghmap, Point(hough_lines[i][0], hough_lines[i][1]), Point(hough_lines[i][2], hough_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
+  }
+  displayImg("hough",houghmap);
+
+
 
   //*** Compute all line equations ***
   vector<Vec2f> m_and_q = vector<Vec2f>();
-  for(int i = 0; i <= hough_longest_lines.size()-1 ; i++){
+  for(int i = 0; i < hough_longest_lines.size() ; i++){
     Vec2f mq = Vec2f();
     Vec4i l = hough_longest_lines[i];
     int x1 = l[0];
@@ -736,7 +762,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
     m_and_q.push_back(mq);
   }
   //draw lines
-  for(int i = 0; i <= m_and_q.size(); i++){
+  for(int i = 0; i < m_and_q.size(); i++){
     Vec2f r = m_and_q[i];
     float m = r[0];
     float q = r[1];
@@ -772,88 +798,113 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
       }
     }
   }
+  /*
+  //*** Cluster points and get the biggest one ***
+  vector<Point> cluster_centroids;
+  //find k nearest points to a point
+  for(int i = 0; i < height; i++){  //i row
+    for(int j = 0; j < width; j++){ //j column
 
+    }
+  }
+
+  //find nearest point to a point
+  for(int )
+*/
   //*** Find vanishing point as the average of the intersection points ***
+
   int x_sum = 0;
   int y_sum = 0;
   for(int i = 0; i < intersectionPoints.size(); i++){
     x_sum += intersectionPoints[i].x;
     y_sum += intersectionPoints[i].y;
   }
-  float x_van_point = x_sum/intersectionPoints.size();
-  float y_van_point = y_sum/intersectionPoints.size();
-  Point vanishing_point = Point(x_van_point, y_van_point);
-  circle( vanishingPointMap, vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
+  if(intersectionPoints.size() > 0){
+    float x_van_point = x_sum/intersectionPoints.size(); //media
+    float y_van_point = y_sum/intersectionPoints.size(); //media
+    //float x_van_point = intersectionPoints[intersectionPoints.size()/2].x; //mediana
+    //float y_van_point = intersectionPoints[intersectionPoints.size()/2].y; //mediana
+    Point vanishing_point = Point(x_van_point, y_van_point);
+    circle( vanishingPointMap, vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
 
-  //*** Build 2 lines from the vanishing point to the bottom corners ***
-  float m_left = (float)(height - height/6 - vanishing_point.y)/(0 - vanishing_point.x);
-  float q_left = vanishing_point.y-m_left*vanishing_point.x;
-  float m_right = (float)(height - height/6 - vanishing_point.y)/(width - vanishing_point.x);
-  float q_right = vanishing_point.y-m_right*vanishing_point.x;
-  //draw
-  for(int i = 0; i<2; i++){
-    float m,q;
-    if(i==0){
-      m = m_right;
-      q = q_right;
-    }else{
-      m = m_left;
-      q = q_left;
+    //cout << vanishing_point << endl;
+    //*** Build 2 lines from the vanishing point to the bottom corners ***
+    float m_left = (float)(height - height/6 - vanishing_point.y)/(0 - vanishing_point.x);
+    float q_left = vanishing_point.y-m_left*vanishing_point.x;
+    float m_right = (float)(height - height/6 - vanishing_point.y)/(width - vanishing_point.x);
+    float q_right = vanishing_point.y-m_right*vanishing_point.x;
+
+    //draw
+    for(int i = 0; i<2; i++){
+      float m,q;
+      if(i==0){
+        m = m_right;
+        q = q_right;
+      }else{
+        m = m_left;
+        q = q_left;
+      }
+      int x0 = 0;
+      int x_width = width;
+      float y0 = m * x0 + q;
+      float y_width = m * x_width + q;
+      line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(255,0,0), 3, CV_AA); //blue lines
     }
-    int x0 = 0;
-    int x_width = width;
-    float y0 = m * x0 + q;
-    float y_width = m * x_width + q;
-    line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(255,0,0), 3, CV_AA); //blue lines
-  }
 
-  //*** Find trapezium points ***
-  //Find horizon line
-  int horizon = 0;
-  for(int i=0; i<horizontal_lines.size(); i++){
-    Vec4i l = horizontal_lines[i];
-    int v = vanishing_point.y;
-    if(l[1]>v && (abs(l[1]-v) < height/6) && l[1]>horizon){
-      horizon = l[1];
+    //*** Find trapezium points ***
+    //Find horizon line
+    int horizon = 0;
+    for(int i=0; i<horizontal_lines.size(); i++){
+      Vec4i l = horizontal_lines[i];
+      int v = vanishing_point.y;
+      if(l[1]>v && (abs(l[1]-v) < height/6) && l[1]>horizon){
+        horizon = l[1];
+      }
     }
-  }
-  //horizontal lines
-  int xUp1 = 0;
-  int yUp1 = horizon + height/horizon_offset_ratio; //height - height/3;
-  int xUp2 = width;
-  int yUp2 = yUp1;
-  int xDown1 = 0;
-  int yDown1 = height - height/6;  //height*9/10;
-  int xDown2 = width;
-  int yDown2 = yDown1;
-  float m_up = (float)(yUp2-yUp1)/(xUp2-xUp1);
-  float m_down = (float)(yDown2-yDown1)/(xDown2-xDown1);
-  float q_up = yUp1-m_up*xUp1;
-  float q_down = yDown1-m_up*xDown1;
-  //left intersection points
-  int xIntLeft1 = (q_down - q_left)/(m_left - m_down);
-  int yIntLeft1 = m_left*xIntLeft1 + q_left;
-  int xIntLeft2 = (q_up - q_left)/(m_left - m_up);
-  int yIntLeft2 = m_left*xIntLeft2 + q_left;
-  //right intersection points
-  int xIntRight1 = (q_up - q_right)/(m_right - m_up);
-  int yIntRight1 = m_right*xIntRight1 + q_right;
-  int xIntRight2 = (q_down - q_right)/(m_right - m_down);
-  int yIntRight2 = m_right*xIntRight2 + q_right;
-  circle( vanishingPointMap, Point(xIntRight1, yIntRight1), 5, Scalar( 0, 255, 255),  4, 2 ); //yellow dots
-  circle( vanishingPointMap, Point(xIntRight2, yIntRight2), 5, Scalar( 0, 255, 255),  4, 2 );
-  circle( vanishingPointMap, Point(xIntLeft1, yIntLeft1), 5, Scalar( 0, 255, 255),  4, 2 );
-  circle( vanishingPointMap, Point(xIntLeft2, yIntLeft2), 5, Scalar( 0, 255, 255),  4, 2 );
+    if(horizon < vanishing_point.y + horizon_offset){
+      horizon = vanishing_point.y;
+    }
+    //horizontal lines
+    int xUp1 = 0;
+    int yUp1 = horizon + horizon_offset; //height - height/3;
+    int xUp2 = width;
+    int yUp2 = yUp1;
+    int xDown1 = 0;
+    int yDown1 = height - height/6;  //height*9/10;
+    int xDown2 = width;
+    int yDown2 = yDown1;
+    float m_up = (float)(yUp2-yUp1)/(xUp2-xUp1);
+    float m_down = (float)(yDown2-yDown1)/(xDown2-xDown1);
+    float q_up = yUp1-m_up*xUp1;
+    float q_down = yDown1-m_up*xDown1;
+    //left intersection points
+    int xIntLeft1 = (q_down - q_left)/(m_left - m_down);
+    int yIntLeft1 = m_left*xIntLeft1 + q_left;
+    int xIntLeft2 = (q_up - q_left)/(m_left - m_up);
+    int yIntLeft2 = m_left*xIntLeft2 + q_left;
+    //right intersection points
+    int xIntRight1 = (q_up - q_right)/(m_right - m_up);
+    int yIntRight1 = m_right*xIntRight1 + q_right;
+    int xIntRight2 = (q_down - q_right)/(m_right - m_down);
+    int yIntRight2 = m_right*xIntRight2 + q_right;
+    circle( vanishingPointMap, Point(xIntRight1, yIntRight1), 5, Scalar( 0, 255, 255),  4, 2 ); //yellow dots
+    circle( vanishingPointMap, Point(xIntRight2, yIntRight2), 5, Scalar( 0, 255, 255),  4, 2 );
+    circle( vanishingPointMap, Point(xIntLeft1, yIntLeft1), 5, Scalar( 0, 255, 255),  4, 2 );
+    circle( vanishingPointMap, Point(xIntLeft2, yIntLeft2), 5, Scalar( 0, 255, 255),  4, 2 );
 
-  //*** Return perspective transform points ***
-  vector<Point2f> perspTransfInPoints = vector<Point2f>();
-  perspTransfInPoints.push_back(Point(xIntLeft1, yIntLeft1));
-  perspTransfInPoints.push_back(Point(xIntLeft2, yIntLeft2));
-  perspTransfInPoints.push_back(Point(xIntRight1, yIntRight1));
-  perspTransfInPoints.push_back(Point(xIntRight2, yIntRight2));
+    //*** Return perspective transform points ***
+    perspTransfInPoints = vector<Point2f>();
+    perspTransfInPoints.push_back(Point(xIntLeft1, yIntLeft1));
+    perspTransfInPoints.push_back(Point(xIntLeft2, yIntLeft2));
+    perspTransfInPoints.push_back(Point(xIntRight1, yIntRight1));
+    perspTransfInPoints.push_back(Point(xIntRight2, yIntRight2));
+
+
+  }
 
   displayImg("vanishingPointMap",vanishingPointMap);
   return perspTransfInPoints;
+
 
 }
 
