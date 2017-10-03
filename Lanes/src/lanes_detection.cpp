@@ -186,9 +186,6 @@ bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, rig
 bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
 
 
-//*** Inverse perspective transform ***
-//rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
-
 //*** Find average curve ***
 vector<float> avgBeta = vector<float>();
 vector<Point> avgCurve;
@@ -223,10 +220,15 @@ if(turn == 1){
 }else{
   cout << "go straight" << endl;
 }
+
+
+//*** Inverse perspective transform ***
+rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
+
 //*** Display Images ***
 displayImg("Rectangles",rectangles);
 //displayImg("Wip",wip);
-
+displayImg("Source",src);
 //*** Kill frame ***
 waitKey(0);
 //if(waitKey(30) >= 0) break;

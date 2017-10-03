@@ -247,13 +247,17 @@ counter++;
 //ROS
 std_msgs::String msg;
 std::stringstream ss;
-if(turn == 1){
-  ss << "turn right " << count;
+
+/*if(turn == 1){
+  //ss << "turn right " << count;
 }else if(turn == -1){
   ss << "turn left " << count;
 }else{
   ss << "go straight " << count;
-}
+}*/
+
+ss << turn << count;
+
 //ss << "hello world " << count;
 msg.data = ss.str();
 ROS_INFO("%s", msg.data.c_str());

@@ -211,7 +211,7 @@ add_dependencies(listener beginner_tutorials_generate_messages_cpp)
 
 #opecv
 #cmake_minimum_required(VERSION 2.8)
-find_package(OpenCV 3.3.0 REQUIRED)
+find_package(OpenCV 3.3.0 REQUIRED )
 #project( Lanes )
 find_package( OpenCV REQUIRED )
 target_link_libraries( talker ${OpenCV_LIBS} )
