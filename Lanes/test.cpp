@@ -12,11 +12,11 @@ using namespace cv;
 #define canny_high_threshold_ratio 3
 #define canny_kernel 3
 #define blur_kernel 5
-#define mask_offset 300
+#define mask_offset_ratio 3
 #define rect_width_ratio 10
 #define rect_offset_ratio 20
 #define n_rect 10
-#define rect_thickness 2
+#define rect_thickness_ratio 200
 #define tot_min_weight 10
 #define max_dir_changes 5
 #define straight_tolerance_ratio 80
@@ -33,7 +33,7 @@ using namespace cv;
 #define min_slope 0.1
 #define window_width 800
 #define window_height 500
-#define horizon_offset_ratio 15
+#define horizon_offset_ratio 5
 #define straight_range 30 //cambiare con ratio
 
 //* Colors *
@@ -45,7 +45,7 @@ const Scalar white_filtering_threshold = Scalar(120, 120, 120);
 
 //* Prototypes *
 vector<Point> computeRect(Point center, int rect_width,int rect_height);
-void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
+void drawRect(vector<Point> rect_points, Scalar rect_color, int height, Mat rectangles);
 void displayImg(const char* window_name,Mat mat);
 Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
 float movingAverage(float avg, float new_sample);
@@ -117,6 +117,7 @@ for(;;){
 
   //compute binary image/
   Mat vanishingPointMap = src.clone();
+  Mat lightnessMat, saturationMat;
   Mat grayMat = src.clone();
 
   for ( int i = 1; i < blur_kernel ; i = i + 2 ){
@@ -128,27 +129,60 @@ for(;;){
   Mat planes[3];
   split(vanishingPointMap,planes);
   vanishingPointMap = planes[2];
+  saturationMat = planes[2];
+  lightnessMat = planes[1];
+  //displayImg("lightnessMat", lightnessMat);
+  //displayImg("planes[0]", planes[0]);
+  displayImg("planes[2]", planes[2]);
+
+  //compute avg lightness
+  int sum = 0;
+  int n_pixel = 0;
+  for(int i = 0; i < height; i++){
+    for(int j = 0; j< width; j++){
+      n_pixel++;
+      sum += lightnessMat.at<uchar>(i,j);
+    }
+  }
+  float lightnessAvg = sum/n_pixel;
+  cout << "lightness: " << lightnessAvg << endl;
+
+  //change s_channel based on l_channel
+  for(int i = 0; i < height; i++){
+    for(int j = 0; j< width; j++){
+      if(lightnessMat.at<uchar>(i,j) < lightnessAvg){
+        vanishingPointMap.at<uchar>(i,j) = 0;
+      }else{
+        vanishingPointMap.at<uchar>(i,j)
+      }
+    }
+  }
+  displayImg("vanishingPointMapThres", vanishingPointMap);
 
   //sobelx
   cvtColor( grayMat, grayMat, CV_BGR2GRAY );
-  Mat grad_x, abs_grad_x, combined_binary;
+  Mat grad_x, grad_y, abs_grad_x, abs_grad_y, combined_binary;
   int scale = 1;
   int delta = 0;
   int ddepth = CV_64F;
   double min, max;
   Sobel( grayMat, grad_x, ddepth, 1, 0, 3, scale, delta, BORDER_DEFAULT );
+  //Sobel( grayMat, grad_y, ddepth, 0, 1, 3, scale, delta, BORDER_DEFAULT );
   convertScaleAbs( grad_x, abs_grad_x );
+  //convertScaleAbs( grad_y, abs_grad_y );
+  //bitwise_and(abs_grad_x, abs_grad_y, abs_grad_x);
 
-  inRange(vanishingPointMap, white_filtering_threshold, Scalar(255, 255, 255), vanishingPointMap); //Scalar(150, 150, 150)
-  adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  inRange(vanishingPointMap, 50,255, vanishingPointMap); //Scalar(150, 150, 150)
+  adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,105,0);
+  //threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY | THRESH_OTSU);
 
-  inRange(abs_grad_x, white_filtering_threshold, Scalar(255, 255, 255), abs_grad_x); //Scalar(150, 150, 150)
-  adaptiveThreshold(abs_grad_x,abs_grad_x,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  inRange(abs_grad_x, 50, 255 , abs_grad_x); //Scalar(255, 255, 255)
+  adaptiveThreshold(abs_grad_x,abs_grad_x,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,33,0);
   //threshold(abs_grad_x,abs_grad_x,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(abs_grad_x,abs_grad_x,THRESH_OTSU,255,THRESH_OTSU);
 
   displayImg("abs_grad_x", abs_grad_x);
-  displayImg("vanishingPointMapThres", vanishingPointMap);
+  //displayImg("vanishingPointMapThres", vanishingPointMap);
 
   bitwise_or(abs_grad_x, vanishingPointMap, combined_binary);
 
@@ -158,7 +192,6 @@ for(;;){
 
 
   wip = combined_binary;//src;
-
 
   //* perspective Transform *
   vector<Point2f> perspTransfOutPoints;
@@ -175,9 +208,10 @@ for(;;){
 
   //* Curve Mask *
   if(some_right && some_left){
+    int mask_offset = height/mask_offset_ratio;
     Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
     bitwise_and(wip,mask,wip);
-    displayImg("Mask",mask);
+    //displayImg("Mask",mask);
   }
 
   //* Find curve points *
@@ -256,6 +290,7 @@ for(;;){
   //* Display Images *
   displayImg("Rectangles",rectangles);
   //displayImg("Wip",wip);
+  //displayImg("Src",src);
 
   //* Kill frame *
   waitKey(0);
@@ -269,7 +304,8 @@ return 0;
 } //END MAIN
 
 //* Functions *
-void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles){ //draw the rectangles
+void drawRect(vector<Point> rect_points, Scalar rect_color, int height, Mat rectangles){ //draw the rectangles
+  const float thickness = height/rect_thickness_ratio;
   line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
   line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
   line( rectangles, rect_points[2], rect_points[3], rect_color, thickness, CV_AA);
@@ -631,7 +667,7 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> 
       rectCenters.push_back(nextCenter);
     }
     //Draw left rectangle
-    drawRect(rect, rect_color, rect_thickness, rectangles);
+    drawRect(rect, rect_color, height, rectangles);
   }
 }
 else {
@@ -658,7 +694,7 @@ else {
   rectCenters[i+1].x = rectCenters[i].x;
 }*/
 //Draw left rectangle
-drawRect(rect, rect_color, rect_thickness, rectangles);
+drawRect(rect, rect_color, height, rectangles);
 }
 }
 return 0;
@@ -670,6 +706,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
   int height = src.size().height;
   int width = src.size().width;
   const int horizon_offset = height/horizon_offset_ratio;
+  cout << "horizon offset " << horizon_offset << endl;
   vector<Point2f> perspTransfInPoints;
 
   cvtColor( vanishingPointMap, vanishingPointMap, CV_BGR2GRAY );
@@ -766,7 +803,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
   for(int i = 0; i < hough_lines.size(); i++){
       line( houghmap, Point(hough_lines[i][0], hough_lines[i][1]), Point(hough_lines[i][2], hough_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
   }
-  displayImg("hough",houghmap);
+  //displayImg("hough",houghmap);
 
 
 
@@ -890,11 +927,11 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
     }
     //horizontal lines
     int xUp1 = 0;
-    int yUp1 = horizon + horizon_offset; //height - height/3;
+    int yUp1 = horizon + 50;//horizon_offset; //height - height/3;
     int xUp2 = width;
     int yUp2 = yUp1;
     int xDown1 = 0;
-    int yDown1 = height - height/6;  //height*9/10;
+    int yDown1 = height; //- height/6;  //height*9/10;
     int xDown2 = width;
     int yDown2 = yDown1;
     float m_up = (float)(yUp2-yUp1)/(xUp2-xUp1);
@@ -925,7 +962,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
 
   }
 
-  displayImg("vanishingPointMap",vanishingPointMap);
+  //displayImg("vanishingPointMap",vanishingPointMap);
   return perspTransfInPoints;
 
 }
