@@ -1,0 +1,6 @@
+#cmake_minimum_required(VERSION 2.8)
+find_package(OpenCV 3.3.0 REQUIRED)
+project( Lanes )
+find_package( OpenCV REQUIRED )
+add_executable( launch_lanes_detection src/launch_lanes_detection.cpp src/lanes_detection.cpp)
+target_link_libraries( launch_lanes_detection ${OpenCV_LIBS} )
