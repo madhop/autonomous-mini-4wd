@@ -36,6 +36,8 @@ using namespace cv;
 #define window_height 500
 #define horizon_offset_ratio 5
 #define straight_range 30 //cambiare con ratio
+#define vanishing_point_window 10
+#define vanishing_point_window_offset 1
 
 //* Colors *
 const Scalar rect_color = Scalar(0,0,255);
@@ -443,7 +445,7 @@ return 0;
 }
 
 
-vector<Point2f> findPerspectiveInPoints(Mat src){
+vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
   Mat vanishingPointMap = src.clone();
   int height = src.size().height;
   int width = src.size().width;
@@ -627,13 +629,26 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
     float y_van_point = y_sum/intersectionPoints.size(); //media
     //float x_van_point = intersectionPoints[intersectionPoints.size()/2].x; //mediana
     //float y_van_point = intersectionPoints[intersectionPoints.size()/2].y; //mediana
-    Point vanishing_point = Point(x_van_point, y_van_point);
-    circle( vanishingPointMap, vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
+    Point new_vanishing_point = Point(x_van_point, y_van_point);
+    cout << "new_vanishing_point: " << new_vanishing_point << endl;
+    circle( vanishingPointMap, new_vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
+    if(vanishing_point_avg.x == 0 && vanishing_point_avg.y == 0 ){
+      cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+      vanishing_point_avg = new_vanishing_point;
+    }else{
+      vanishing_point_avg.x -= vanishing_point_avg.x / vanishing_point_window;
+      vanishing_point_avg.y -= vanishing_point_avg.y / vanishing_point_window;
+      vanishing_point_avg.x += new_vanishing_point.x / vanishing_point_window;
+      vanishing_point_avg.y += new_vanishing_point.y / vanishing_point_window;
+      cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+    }
+    circle( vanishingPointMap, vanishing_point_avg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
 
+    Point vanishing_point = vanishing_point_avg;
     //* Build 2 lines from the vanishing point to the bottom corners *
-    float m_left = (float)(height - height/6 - vanishing_point.y)/(0 - vanishing_point.x);
+    float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); cout << "m left " << m_left << endl;
     float q_left = vanishing_point.y-m_left*vanishing_point.x;
-    float m_right = (float)(height - height/6 - vanishing_point.y)/(width - vanishing_point.x);
+    float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); cout << "m right " << m_right << endl;
     float q_right = vanishing_point.y-m_right*vanishing_point.x;
     //draw
     for(int i = 0; i<2; i++){
@@ -704,7 +719,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src){
 
   }
 
-  //displayImg("vanishingPointMap",vanishingPointMap);
+  displayImg("vanishingPointMap",vanishingPointMap);
   return perspTransfInPoints;
 
 }
@@ -719,7 +734,7 @@ return 0;
 }
 
 
-Mat computeBinaryThresholding(Mat src){
+Mat computeCombinedBinaryThresholding(Mat src){
   int height = src.size().height;
   int width = src.size().width;
   //compute binary image/
@@ -740,7 +755,7 @@ Mat computeBinaryThresholding(Mat src){
   lightnessMat = planes[1];
   //displayImg("lightnessMat", lightnessMat);
   //displayImg("planes[0]", planes[0]);
-  displayImg("planes[2]", planes[2]);
+  //displayImg("planes[2]", planes[2]);
 
   //compute avg lightness
   int sum = 0;
@@ -764,7 +779,7 @@ Mat computeBinaryThresholding(Mat src){
       }
     }
   }
-  displayImg("vanishingPointMapThres", vanishingPointMap);
+  //displayImg("vanishingPointMapThres", vanishingPointMap);
 
   //sobelx
   cvtColor( grayMat, grayMat, CV_BGR2GRAY );
@@ -788,12 +803,12 @@ Mat computeBinaryThresholding(Mat src){
   //threshold(abs_grad_x,abs_grad_x,0,255,THRESH_BINARY | THRESH_OTSU);
   //threshold(abs_grad_x,abs_grad_x,THRESH_OTSU,255,THRESH_OTSU);
 
-  displayImg("abs_grad_x", abs_grad_x);
+  //displayImg("abs_grad_x", abs_grad_x);
   //displayImg("vanishingPointMapThres", vanishingPointMap);
 
   bitwise_or(abs_grad_x, vanishingPointMap, combined_binary);
 
-  displayImg("combined_binary", combined_binary);
+  //displayImg("combined_binary", combined_binary);
 
   //end compute binary image/
   return combined_binary;
@@ -803,10 +818,10 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
                 vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
                 vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
                 bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
-                int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter){
+                int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg){
 
   cout << "* frame *" << endl;
-
+  int turn = 0;
   //* Capture frame *
   Mat wip;
   int width = src.size().width;
@@ -819,12 +834,13 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
 
 
   //*** Binary thresholding ***
+  //wip = computeCombinedBinaryThresholding(src);
   wip = computeBinaryThresholding(src);
 
   //* perspective Transform *
   vector<Point2f> perspTransfOutPoints;
-  if(counter==0){
-    perspTransfInPoints = findPerspectiveInPoints(src);
+  if(counter >= vanishing_point_window_offset && counter < vanishing_point_window+vanishing_point_window_offset ){//counter==0){
+    perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
   }
   if(perspTransfInPoints.size()>0){ //If vanishing point has been found
     perspTransfOutPoints.push_back(Point2f( 0,height));
@@ -832,99 +848,115 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
     perspTransfOutPoints.push_back(Point2f( width, 0));
     perspTransfOutPoints.push_back(Point2f( width, height));
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
-  }
 
-  //* Curve Mask *
-  if(some_right && some_left){
-    int mask_offset = height/mask_offset_ratio;
-    Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
-    bitwise_and(wip,mask,wip);
-    //displayImg("Mask",mask);
-  }
-
-  //* Find curve points *
-  Mat rectangles = wip;
-  cvtColor( rectangles, rectangles, CV_GRAY2BGR );
-  vector<Point> leftRectCenters; //filled by function findCurvePoints
-  vector<Point> rightRectCenters;
-  vector<Point> leftBarycenters;
-  vector<Point> rightBarycenters;
-  findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters);
-  findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters);
-
-  //* Fit curves *
-  //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
-  vector<float> leftBeta = polyFit(leftBarycenters,wip, 2);
-  vector<Point> fittedRight;
-  vector<Point> fittedLeft;
-  if(leftBeta.size() > 0){
-    fittedLeft = computePoly(leftBeta, height);
-  }
-  vector<float> rightBeta = polyFit(rightBarycenters,wip, 2);
-  if(rightBeta.size() > 0){
-    fittedRight = computePoly(rightBeta, height);
-  }
-
-  //* Draw curves *
-  polylines( rectangles, lastOkFittedRight, 0, last_ok_fitted_color, 8, 0);
-  polylines( rectangles, lastOkFittedLeft, 0, last_ok_fitted_color, 8, 0);
-  polylines( rectangles, fittedLeft, 0, cur_fitted_color, 8, 0);
-  polylines( rectangles, fittedRight, 0, cur_fitted_color, 8, 0);
-
-  //* Classify Curves *
-  bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
-  bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
-
-  //* Find average curve *
-  vector<float> avgBeta = vector<float>();
-  vector<Point> avgCurve;
-  if(some_right && some_left){
-    for(int i=0; i<lastOkBetaLeft.size(); i++){
-      avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
+    //* Curve Mask *
+    if(some_right && some_left){
+      int mask_offset = height/mask_offset_ratio;
+      Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
+      bitwise_and(wip,mask,wip);
+      //displayImg("Mask",mask);
     }
-    avgCurve = computePoly(avgBeta, height);
+
+    //* Find curve points *
+    Mat rectangles = wip;
+    cvtColor( rectangles, rectangles, CV_GRAY2BGR );
+    vector<Point> leftRectCenters; //filled by function findCurvePoints
+    vector<Point> rightRectCenters;
+    vector<Point> leftBarycenters;
+    vector<Point> rightBarycenters;
+    findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters);
+    findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters);
+
+    //* Fit curves *
+    //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
+    vector<float> leftBeta = polyFit(leftBarycenters,wip, 2);
+    vector<Point> fittedRight;
+    vector<Point> fittedLeft;
+    if(leftBeta.size() > 0){
+      fittedLeft = computePoly(leftBeta, height);
+    }
+    vector<float> rightBeta = polyFit(rightBarycenters,wip, 2);
+    if(rightBeta.size() > 0){
+      fittedRight = computePoly(rightBeta, height);
+    }
+
+    //* Draw curves *
+    polylines( rectangles, lastOkFittedRight, 0, last_ok_fitted_color, 8, 0);
+    polylines( rectangles, lastOkFittedLeft, 0, last_ok_fitted_color, 8, 0);
+    polylines( rectangles, fittedLeft, 0, cur_fitted_color, 8, 0);
+    polylines( rectangles, fittedRight, 0, cur_fitted_color, 8, 0);
+
+    //* Classify Curves *
+    bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
+    bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
+
+    //* Find average curve *
+    vector<float> avgBeta = vector<float>();
+    vector<Point> avgCurve;
+    if(some_right && some_left){
+      for(int i=0; i<lastOkBetaLeft.size(); i++){
+        avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
+      }
+      avgCurve = computePoly(avgBeta, height);
+    }
+    polylines( rectangles, avgCurve, 0, avg_curve_avg, 8, 0);
+
+
+    //*** Inverse perspective transform ***
+    /*
+      rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);*/
+
+    //Find direction
+    float dir = 0;
+    float u = 0;
+    float p = 0.9;
+    for(int i=0; i<avgCurve.size(); i++){
+      //dir+=avgCurve[i].x;
+      u = p*u + (1-p);
+      dir+=u*avgCurve[i].x;
+    }
+    dir/=avgCurve.size();
+    circle( rectangles, Point(dir,height), 5, Scalar( 0, 255, 0 ),  3, 3 );
+    circle( rectangles, Point(width/2,height), 5, Scalar( 0, 100, 255 ),  3, 3 );
+
+
+    turn = computeDirection(dir, width/2);
+    if(turn == 1){
+      cout << "turn right" << endl;
+    }else if(turn == -1){
+      cout << "turn left" << endl;
+    }else{
+      cout << "go straight" << endl;
+    }
+    //* Display Images *
+    displayImg("Rectangles",rectangles);
+    //displayImg("Wip",wip);
+    displayImg("Src",src);
   }
-  polylines( rectangles, avgCurve, 0, avg_curve_avg, 8, 0);
 
 
-  //*** Inverse perspective transform ***
-  /*
-  if(perspTransfInPoints.size() > 0){
-    rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);
-  }*/
 
-  //Find direction
-  float dir = 0;
-  float u = 0;
-  float p = 0.9;
-  for(int i=0; i<avgCurve.size(); i++){
-    //dir+=avgCurve[i].x;
-    u = p*u + (1-p);
-    dir+=u*avgCurve[i].x;
-  }
-  dir/=avgCurve.size();
-  circle( rectangles, Point(dir,height), 5, Scalar( 0, 255, 0 ),  3, 3 );
-  circle( rectangles, Point(width/2,height), 5, Scalar( 0, 100, 255 ),  3, 3 );
-
-
-  int turn = computeDirection(dir, width/2);
-  if(turn == 1){
-    cout << "turn right" << endl;
-  }else if(turn == -1){
-    cout << "turn left" << endl;
-  }else{
-    cout << "go straight" << endl;
-  }
-  //* Display Images *
-  displayImg("Rectangles",rectangles);
-  //displayImg("Wip",wip);
-  //displayImg("Src",src);
-
-  //* Kill frame *
-  waitKey(0);
-  //if(waitKey(30) >= 0) break;
-
-  //* Write to video *
-  //outputVideo << src;
   counter++;
+  return turn;
+
+}
+
+Mat computeBinaryThresholding(Mat src){ //thresholding with just adaptive threshold on gray scale image
+  int height = src.size().height;
+  int width = src.size().width;
+  //compute binary image/
+  Mat wip  = src.clone();
+  cvtColor( wip, wip, CV_BGR2GRAY );
+
+  for ( int i = 1; i < blur_kernel ; i = i + 2 ){
+    GaussianBlur( wip, wip, Size( i, i ), 0, 0, BORDER_DEFAULT );
+  }
+
+  inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
+  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  //threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY | THRESH_OTSU);
+
+  //displayImg("adaptiveThreshold", wip);
+
+  return wip;
 }

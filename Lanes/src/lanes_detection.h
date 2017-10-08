@@ -24,9 +24,10 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> 
 vector<Point2f> findPerspectiveInPoints(Mat src);
 vector<Point> computePoly(vector<float> beta, int n_points);
 int computeDirection(float actualPos, float desiredPos);
+Mat computeCombinedBinaryThresholding(Mat src);
 Mat computeBinaryThresholding(Mat src);
 int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
                 vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
                 vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
                 bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
-                int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter);
+                int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg);
