@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <iostream>
 #include "lanes_detection.h"
+#include <unistd.h>
+#include <sys/time.h>
 
 using namespace std;
 using namespace cv;
@@ -12,7 +14,7 @@ using namespace cv;
 /** @function main */
 int main( int argc, char** argv ){
   //* Load video *
-  VideoCapture cap("http://192.168.1.6:8080/?action=stream");//argv[1]); // open the default camera
+  VideoCapture cap(0);//"http://192.168.1.6:8080/?action=stream");//argv[1]); // open the default camera
   if(!cap.isOpened()){  // check if we succeeded
     return -1;
   }
@@ -52,16 +54,35 @@ Point vanishing_point_avg = Point(0,0);
 int counter = 0;
 for(;;){
   Mat src;
+
+
+  /*
+  timeval start;
+  gettimeofday(&start, NULL);
+  long startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+
+  timeval end;
+  gettimeofday(&end, NULL);
+  long endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+  cout << "elapsed time: " << endMillis - startMillis << endl;*/
+
   cap >> src;
+
   int turn = detectLanes(src,lastOkFittedRight, lastOkFittedLeft, lastOkRightRectCenters, lastOkLeftRectCenters,
                         lastFittedRight, lastFittedLeft, perspTransfInPoints, lastOkBetaLeft, lastOkBetaRight,
                         some_left, some_right, left_bad_series, right_bad_series, right_ok_series,
                         left_ok_series, right_similar_series, left_similar_series, counter, vanishing_point_avg);
-  //* Kill frame *
-  //waitKey(0);
-  if(waitKey(30) >= 0) break;
+
+
+  cout << "turn: " << turn << endl;
+
+
   //* Write to video *
   //outputVideo << src;
+
+  //* Kill frame *
+  waitKey(1);
+
 
 }
 return 0;

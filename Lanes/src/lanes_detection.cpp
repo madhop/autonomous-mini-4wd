@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <iostream>
 #include "lanes_detection.h"
+#include <sys/time.h>
 
 using namespace std;
 using namespace cv;
@@ -35,7 +36,7 @@ using namespace cv;
 #define window_width 800
 #define window_height 500
 #define horizon_offset_ratio 5
-#define straight_range 30 //cambiare con ratio
+#define straight_range 3 //cambiare con ratio
 #define vanishing_point_window 10
 #define vanishing_point_window_offset 1
 
@@ -329,9 +330,9 @@ curve_ok = false;
 }
 }
 else{ //If there's not a good curve
-cout << "computeRmse(fittedCurve,lastFittedCurve): " << computeRmse(fittedCurve,lastFittedCurve) << endl;
+//cout << "computeRmse(fittedCurve,lastFittedCurve): " << computeRmse(fittedCurve,lastFittedCurve) << endl;
 if(computeRmse(fittedCurve,lastFittedCurve) < rmse_tolerance){ // If there's no good curve and the current is similar to the previous
-cout << "no good curve, last 2 similar" << endl;
+//cout << "no good curve, last 2 similar" << endl;
 curve_similar_series++;
 if(curve_similar_series >= min_similar_curves){
   curve_ok = true;
@@ -358,7 +359,7 @@ if(curve_ok == false){ //Current curve is bad
 
 
 if(curve_ok_series >= min_good_curves){
-  cout << "curve_ok_series: " << curve_ok_series << endl;
+  //cout << "curve_ok_series: " << curve_ok_series << endl;
   some_curve = true;
   lastOkFittedCurve = fittedCurve;
   lastOkCurveRectCenters = curveRectCenters;
@@ -450,7 +451,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
   int height = src.size().height;
   int width = src.size().width;
   const int horizon_offset = height/horizon_offset_ratio;
-  cout << "horizon offset " << horizon_offset << endl;
+  //cout << "horizon offset " << horizon_offset << endl;
   vector<Point2f> perspTransfInPoints;
 
   cvtColor( vanishingPointMap, vanishingPointMap, CV_BGR2GRAY );
@@ -535,11 +536,11 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
   }
 
   //*** Show Hough ***
-  for(int i = 0; i<hough_longest_lines.size(); i++){
+  /*for(int i = 0; i<hough_longest_lines.size(); i++){
     cout << "hough_longest_lines: " << hough_longest_lines[i] << endl;
   }
   cout << hough_lines.size() << endl;
-  cout << hough_longest_lines.size() << endl;
+  cout << hough_longest_lines.size() << endl;*/
   Mat houghmap = Mat::zeros(height,width, src.type());
   /*for(int i = 0; i < hough_longest_lines.size(); i++){
       line( houghmap, Point(hough_longest_lines[i][0], hough_longest_lines[i][1]), Point(hough_longest_lines[i][2], hough_longest_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
@@ -630,25 +631,25 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
     //float x_van_point = intersectionPoints[intersectionPoints.size()/2].x; //mediana
     //float y_van_point = intersectionPoints[intersectionPoints.size()/2].y; //mediana
     Point new_vanishing_point = Point(x_van_point, y_van_point);
-    cout << "new_vanishing_point: " << new_vanishing_point << endl;
+    //cout << "new_vanishing_point: " << new_vanishing_point << endl;
     circle( vanishingPointMap, new_vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
     if(vanishing_point_avg.x == 0 && vanishing_point_avg.y == 0 ){
-      cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+      //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
       vanishing_point_avg = new_vanishing_point;
     }else{
       vanishing_point_avg.x -= vanishing_point_avg.x / vanishing_point_window;
       vanishing_point_avg.y -= vanishing_point_avg.y / vanishing_point_window;
       vanishing_point_avg.x += new_vanishing_point.x / vanishing_point_window;
       vanishing_point_avg.y += new_vanishing_point.y / vanishing_point_window;
-      cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+      //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
     }
     circle( vanishingPointMap, vanishing_point_avg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
 
     Point vanishing_point = vanishing_point_avg;
     //* Build 2 lines from the vanishing point to the bottom corners *
-    float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); cout << "m left " << m_left << endl;
+    float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
     float q_left = vanishing_point.y-m_left*vanishing_point.x;
-    float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); cout << "m right " << m_right << endl;
+    float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); //cout << "m right " << m_right << endl;
     float q_right = vanishing_point.y-m_right*vanishing_point.x;
     //draw
     for(int i = 0; i<2; i++){
@@ -677,8 +678,8 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
         horizon = l[1];
       }
     }
-    cout << "horizon ************* " << horizon << endl;
-    cout << "van ************* " << vanishing_point << endl;
+    //cout << "horizon ************* " << horizon << endl;
+    //cout << "van ************* " << vanishing_point << endl;
     if(horizon < vanishing_point.y){
       horizon = vanishing_point.y;
     }
@@ -719,7 +720,7 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
 
   }
 
-  displayImg("vanishingPointMap",vanishingPointMap);
+  //displayImg("vanishingPointMap",vanishingPointMap);
   return perspTransfInPoints;
 
 }
@@ -767,7 +768,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
     }
   }
   float lightnessAvg = sum/n_pixel;
-  cout << "lightness: " << lightnessAvg << endl;
+  //cout << "lightness: " << lightnessAvg << endl;
 
   //change s_channel based on l_channel
   for(int i = 0; i < height; i++){
@@ -779,7 +780,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
       }
     }
   }
-  //displayImg("vanishingPointMapThres", vanishingPointMap);
+  displayImg("vanishingPointMapThres", vanishingPointMap);
 
   //sobelx
   cvtColor( grayMat, grayMat, CV_BGR2GRAY );
@@ -820,7 +821,7 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
                 bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
                 int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg){
 
-  cout << "* frame *" << endl;
+  //cout << "* frame *" << endl;
   int turn = 0;
   //* Capture frame *
   Mat wip;
@@ -836,6 +837,7 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
   //*** Binary thresholding ***
   //wip = computeCombinedBinaryThresholding(src);
   wip = computeBinaryThresholding(src);
+
 
   //* perspective Transform *
   vector<Point2f> perspTransfOutPoints;
@@ -866,9 +868,9 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
     vector<Point> rightBarycenters;
     findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters);
     findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters);
-
     //* Fit curves *
     //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
+
     vector<float> leftBeta = polyFit(leftBarycenters,wip, 2);
     vector<Point> fittedRight;
     vector<Point> fittedLeft;
@@ -880,15 +882,18 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
       fittedRight = computePoly(rightBeta, height);
     }
 
+
     //* Draw curves *
     polylines( rectangles, lastOkFittedRight, 0, last_ok_fitted_color, 8, 0);
     polylines( rectangles, lastOkFittedLeft, 0, last_ok_fitted_color, 8, 0);
     polylines( rectangles, fittedLeft, 0, cur_fitted_color, 8, 0);
     polylines( rectangles, fittedRight, 0, cur_fitted_color, 8, 0);
 
+
     //* Classify Curves *
     bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
     bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
+
 
     //* Find average curve *
     vector<float> avgBeta = vector<float>();
@@ -921,17 +926,17 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
 
 
     turn = computeDirection(dir, width/2);
-    if(turn == 1){
+    /*if(turn == 1){
       cout << "turn right" << endl;
     }else if(turn == -1){
       cout << "turn left" << endl;
     }else{
       cout << "go straight" << endl;
-    }
+    }*/
     //* Display Images *
     displayImg("Rectangles",rectangles);
     //displayImg("Wip",wip);
-    displayImg("Src",src);
+    //displayImg("Src",src);
   }
 
 
