@@ -720,16 +720,16 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
 
   }
 
-  //displayImg("vanishingPointMap",vanishingPointMap);
+  displayImg("vanishingPointMap",vanishingPointMap);
   return perspTransfInPoints;
 
 }
 
 int computeDirection(float actualPos, float desiredPos){ // 1 turn right, 0 don't turn, -1 turn left
 if(desiredPos + straight_range - actualPos <  0){
-  return -1;
-}else if(desiredPos - straight_range - actualPos > 0){
   return 1;
+}else if(desiredPos - straight_range - actualPos > 0){
+  return -1;
 }
 return 0;
 }
@@ -780,7 +780,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
       }
     }
   }
-  displayImg("vanishingPointMapThres", vanishingPointMap);
+  //displayImg("vanishingPointMapThres", vanishingPointMap);
 
   //sobelx
   cvtColor( grayMat, grayMat, CV_BGR2GRAY );

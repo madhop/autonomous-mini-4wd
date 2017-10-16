@@ -79,6 +79,7 @@ for(;;){
 
   //* Write to video *
   //outputVideo << src;
+  displayImg("src", src);
 
   //* Kill frame *
   waitKey(1);
