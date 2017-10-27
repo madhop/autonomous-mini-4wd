@@ -441,7 +441,7 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> 
         circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
       }
       cout << "i: " << i << endl;
-      if(barycenters.size() > order){ // if more than n barycenters where found, find the next center fitting a parabola
+      if(barycenters.size() >= order + min_barycenters){ // if more than n barycenters where found, find the next center fitting a parabola
         nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip);
       }else{
         nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
