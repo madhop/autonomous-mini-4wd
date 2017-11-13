@@ -15,9 +15,9 @@ using namespace cv;
 #define canny_kernel 3
 #define blur_kernel 5
 #define mask_offset_ratio 3
-#define rect_width_ratio 10
+#define rect_width_ratio 5
 #define rect_offset_ratio 20
-#define n_rect 10
+#define n_rect 20
 #define rect_thickness_ratio 200
 #define tot_min_weight 10
 #define max_dir_changes 5
@@ -39,6 +39,8 @@ using namespace cv;
 #define straight_range 3 //cambiare con ratio
 #define vanishing_point_window 10
 #define vanishing_point_window_offset 1
+#define order 2
+#define n_barycenters_window 3
 
 //* Colors *
 const Scalar rect_color = Scalar(0,0,255);
@@ -152,13 +154,13 @@ Point computeBarycenter(vector<Point> points, Mat mat){
 return bar;
 }
 
-vector<float> polyFit(vector<Point> points,Mat mat, int order){
+vector<float> polyFit(vector<Point> points, Mat mat, int fitOrder){
   vector<float> beta = vector<float>();
   int width = mat.size().width;
   int height = mat.size().height;
-  if(points.size() > order){
+  if(points.size() > fitOrder){
     Mat X = Mat::zeros( points.size(), 1 , CV_32F );
-    Mat y = Mat::zeros( points.size(), order+1 , CV_32F );
+    Mat y = Mat::zeros( points.size(), fitOrder+1 , CV_32F );
     Mat betaMat; //= Mat::zeros( 3, 1 , CV_32F );
     //matrix Y
     for(int i = 0; i < y.rows; i++){
@@ -376,8 +378,20 @@ lastFittedCurve = fittedCurve;
 return curve_ok;
 }
 
-int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters){ //pos: 0=left, 1=right
+//find next rect center
+Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder){
+  vector<float> beta = polyFit(points, mat, fitOrder);
+
+  int x = 0;
+  for(int i = 0; i<beta.size(); i++){
+    x += beta[i]*pow(y,i);
+  }
+  return Point(x , y);
+}
+
+int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
   if(some_curve == false){
+    cout << "some curve = false" << endl;
     rectCenters = vector<Point>();
     //First rectangle
     int firstX = findHistAcc(wip, pos); //0 means left
@@ -387,45 +401,79 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> 
 
     rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
     //Other rectangles
-    for(int i=0;i<n_rect;i++){
-      //Compute left rectangle
+    for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<n_rect;i++){
+      cout << "center: " << rectCenters[i] << endl;
+      //Compute rectangle
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-      //Compute barycenters and rectangle centers
-      Point nextCenter = Point();
+      // compute barycenter
       Point bar = computeBarycenter(rect ,wip);
-      if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(bar.x - rectCenters[i].x)< next_bary_max_distance
-        //move rectangle
+      cout << "qui PRENDE!!" << endl;
+
+      //compute next rectangle center
+      Point nextCenter = Point();
+      if(bar.x!=-1 && bar.y!=-1 ){
         rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
-        rectCenters[i].x = bar.x;
-
         barycenters.push_back(bar);
-        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-        nextCenter.x = bar.x;
+        rectCenters[i].x = bar.x;
+        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
       }
-      else{
-        nextCenter.x = rectCenters[i].x;
+      cout << "i: " << i << endl;
+      if(barycenters.size() > 2){ // if more than n barycenters where found, find the next center fitting a parabola //(barycenters.size() >= order + min_barycenters)
+        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip, 2);
+        cout << "nextCenter: " << nextCenter << endl;
+      }else if(barycenters.size() > 1){
+        vector<Point> lastNBar = vector<Point>();
+        for(int j = 0; (j<n_barycenters_window && j<barycenters.size()); j++){
+          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+          cout << "bary: " << barycenters[barycenters.size()-1-j] << endl;
+        }
+        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
+        cout << "nextCenter: " << nextCenter << endl;
+      }else{
+        nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
       }
-      nextCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;
-
 
       if(i<n_rect-1){ // if we are in the last rectangle, we don't push the next rectangle
-      rectCenters.push_back(nextCenter);
-    }
-    //Draw left rectangle
-    drawRect(rect, rect_color, height, rectangles);
+        rectCenters.push_back(nextCenter);
+      }
+
+
+
+    /*if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(bar.x - rectCenters[i].x)< next_bary_max_distance
+    //move rectangle
+    rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+    rectCenters[i].x = bar.x;
+
+    barycenters.push_back(bar);
+    circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+    nextCenter.x = bar.x;
   }
+  else{
+  nextCenter.x = rectCenters[i].x;
+}
+nextCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;*/
+
+
+//Draw rectangle
+drawRect(rect, rect_color, height, rectangles);
+}
 }
 else {
+  cout << "some curve = true" << endl;
 
   rectCenters = lastOkRectCenters;
+  for(int h = 0; h<lastOkRectCenters.size(); h++){
+    cout << "lastOkRectCenters " << h << ": " << lastOkRectCenters[h] << endl;
+  }
+  int i = 0;
+  int k;
   for(int i=0;i<n_rect;i++){
     //Compute left rectangle
     vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-
     Point bar = computeBarycenter(rect ,wip);
-    if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added
-      //and if the barycenters are way too far from each other   && abs(bar.x - rectCenters[i].x)< next_bary_max_distance
-      //move rectangle
+    Point nextCenter = Point();
+    if(bar.x!=-1 && bar.y!=-1 ){
+      //cout << "entrato!!! k:" << k << " - offset: " << offset/2 <<  endl;
       rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
 
       rectCenters[i].x = bar.x; //comment for fixed rectangles
@@ -433,14 +481,35 @@ else {
       barycenters.push_back(bar);
       /*if(i<n_rect-1){ // update for next rectangle as well
       rectCenters[i+1].x = rectCenters[i].x;
-    }*/
-  }
+        }*/
+    }
+
+    if(barycenters.size() > 2 ){ // if more than n barycenters where found, find the next center fitting a parabola //(barycenters.size() >= order + min_barycenters && i<n_rect-1)
+      nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip, 2);
+      rectCenters[i+1] = nextCenter;
+    }else if(barycenters.size() > 1){
+      vector<Point> lastNBar = vector<Point>();
+      for(int j = 0; (j<n_barycenters_window && j<barycenters.size()); j++){
+        lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+        cout << "bary: " << barycenters[barycenters.size()-1-j] << endl;
+      }
+      nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
+      rectCenters[i+1] = nextCenter;
+      cout << "nextCenter: " << nextCenter << endl;
+    }else{
+      nextCenter = Point(rectCenters[i].x, rectCenters[i+1].y);
+    }
+    cout << "nextCenter: " << nextCenter << endl;
+
   /*if(i<n_rect-1){ // update for next rectangle as well
-  rectCenters[i+1].x = rectCenters[i].x;
-}*/
-//Draw left rectangle
-drawRect(rect, rect_color, height, rectangles);
-}
+  rectCenters[i+1].x = rectCenters[i].x;}*/
+    //Draw left rectangle
+    drawRect(rect, rect_color, height, rectangles);
+    /*k = abs( -(nextCenter.x - beta[0] - beta[1] * nextCenter.y - beta[2] * pow(nextCenter.y,2)) );
+    cout << "nextCenter: " << nextCenter << endl;
+    cout << "k: " << k << endl;*/
+    //i++;
+  }//while(i<n_rect && k < offset/2);
 }
 return 0;
 }
@@ -537,191 +606,191 @@ vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
 
   //*** Show Hough ***
   /*for(int i = 0; i<hough_longest_lines.size(); i++){
-    cout << "hough_longest_lines: " << hough_longest_lines[i] << endl;
-  }
-  cout << hough_lines.size() << endl;
-  cout << hough_longest_lines.size() << endl;*/
-  Mat houghmap = Mat::zeros(height,width, src.type());
-  /*for(int i = 0; i < hough_longest_lines.size(); i++){
-      line( houghmap, Point(hough_longest_lines[i][0], hough_longest_lines[i][1]), Point(hough_longest_lines[i][2], hough_longest_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
-  }*/
-  for(int i = 0; i < hough_lines.size(); i++){
-      line( houghmap, Point(hough_lines[i][0], hough_lines[i][1]), Point(hough_lines[i][2], hough_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
-  }
-  //displayImg("hough",houghmap);
+  cout << "hough_longest_lines: " << hough_longest_lines[i] << endl;
+}
+cout << hough_lines.size() << endl;
+cout << hough_longest_lines.size() << endl;*/
+Mat houghmap = Mat::zeros(height,width, src.type());
+/*for(int i = 0; i < hough_longest_lines.size(); i++){
+line( houghmap, Point(hough_longest_lines[i][0], hough_longest_lines[i][1]), Point(hough_longest_lines[i][2], hough_longest_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
+}*/
+for(int i = 0; i < hough_lines.size(); i++){
+  line( houghmap, Point(hough_lines[i][0], hough_lines[i][1]), Point(hough_lines[i][2], hough_lines[i][3]), Scalar(0,0,255), 3, CV_AA);
+}
+//displayImg("hough",houghmap);
 
 
 
-  //* Compute all line equations *
-  vector<Vec2f> m_and_q = vector<Vec2f>();
-  for(int i = 0; i < hough_longest_lines.size() ; i++){
-    Vec2f mq = Vec2f();
-    Vec4i l = hough_longest_lines[i];
-    int x1 = l[0];
-    int y1 = l[1];
-    int x2 = l[2];
-    int y2 = l[3];
-    float m = (float)(y2-y1)/(x2-x1);
-    float q = y1-m*x1;
-    mq[0] = m; mq[1] = q;
-    m_and_q.push_back(mq);
+//* Compute all line equations *
+vector<Vec2f> m_and_q = vector<Vec2f>();
+for(int i = 0; i < hough_longest_lines.size() ; i++){
+  Vec2f mq = Vec2f();
+  Vec4i l = hough_longest_lines[i];
+  int x1 = l[0];
+  int y1 = l[1];
+  int x2 = l[2];
+  int y2 = l[3];
+  float m = (float)(y2-y1)/(x2-x1);
+  float q = y1-m*x1;
+  mq[0] = m; mq[1] = q;
+  m_and_q.push_back(mq);
+}
+//draw lines
+for(int i = 0; i < m_and_q.size(); i++){
+  Vec2f r = m_and_q[i];
+  float m = r[0];
+  float q = r[1];
+  //retrieve 2 point of the rect given m and q
+  int x0 = 0;
+  int x_width = width;
+  float y0 = m * x0 + q;
+  float y_width = m * x_width + q;
+  line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(0,0,255), 3, CV_AA); //red lines
+}
+/*
+line( vanishingPointMap, Point( width, height/2), Point( 0, height/2), Scalar(255,0,255), 3, CV_AA); //horizontal line
+line( vanishingPointMap, Point( width, height*9/10), Point( 0, height*9/10), Scalar(255,0,255), 3, CV_AA); //horizontal line
+*/
+//Overlap images
+bitwise_or(src, vanishingPointMap, vanishingPointMap);
+
+
+//* Compute all intersection points *
+vector<Point> intersectionPoints = vector<Point>();
+for(int i = 0; i < m_and_q.size(); i++){
+  Vec2f mq1 = m_and_q[i];
+  for(int k = i; k < m_and_q.size(); k++){
+    //intersection points
+    Vec2f mq2 = m_and_q[k];
+    int x_int = (mq1[1] - mq2[1])/(mq2[0] - mq1[0]);
+    int y_int = mq1[0]*x_int + mq1[1];
+    Point intersection_point = Point(x_int, y_int);
+    if(x_int > 0 && x_int < width && y_int > 0 && y_int < height){ // y_int > height/3 && y_int < 2*height/3
+      intersectionPoints.push_back(intersection_point);
+      //draw intersection
+      circle( vanishingPointMap, intersection_point, 5, Scalar( 255, 255, 255),  2, 2 ); //white dots
+    }
   }
-  //draw lines
-  for(int i = 0; i < m_and_q.size(); i++){
-    Vec2f r = m_and_q[i];
-    float m = r[0];
-    float q = r[1];
-    //retrieve 2 point of the rect given m and q
+}
+
+/*
+//*** Cluster points and get the biggest one ***
+vector<Point> cluster_centroids;
+//find k nearest points to a point
+for(int i = 0; i < height; i++){  //i row
+for(int j = 0; j < width; j++){ //j column
+
+}
+}
+
+//find nearest point to a point
+for(int )
+*/
+
+//* Find vanishing point as the average of the intersection points *
+int x_sum = 0;
+int y_sum = 0;
+for(int i = 0; i < intersectionPoints.size(); i++){
+  x_sum += intersectionPoints[i].x;
+  y_sum += intersectionPoints[i].y;
+}
+if(intersectionPoints.size() > 0){
+  float x_van_point = x_sum/intersectionPoints.size(); //media
+  float y_van_point = y_sum/intersectionPoints.size(); //media
+  //float x_van_point = intersectionPoints[intersectionPoints.size()/2].x; //mediana
+  //float y_van_point = intersectionPoints[intersectionPoints.size()/2].y; //mediana
+  Point new_vanishing_point = Point(x_van_point, y_van_point);
+  //cout << "new_vanishing_point: " << new_vanishing_point << endl;
+  circle( vanishingPointMap, new_vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
+  if(vanishing_point_avg.x == 0 && vanishing_point_avg.y == 0 ){
+    //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+    vanishing_point_avg = new_vanishing_point;
+  }else{
+    vanishing_point_avg.x -= vanishing_point_avg.x / vanishing_point_window;
+    vanishing_point_avg.y -= vanishing_point_avg.y / vanishing_point_window;
+    vanishing_point_avg.x += new_vanishing_point.x / vanishing_point_window;
+    vanishing_point_avg.y += new_vanishing_point.y / vanishing_point_window;
+    //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+  }
+  circle( vanishingPointMap, vanishing_point_avg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
+
+  Point vanishing_point = vanishing_point_avg;
+  //* Build 2 lines from the vanishing point to the bottom corners *
+  float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
+  float q_left = vanishing_point.y-m_left*vanishing_point.x;
+  float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); //cout << "m right " << m_right << endl;
+  float q_right = vanishing_point.y-m_right*vanishing_point.x;
+  //draw
+  for(int i = 0; i<2; i++){
+    float m,q;
+    if(i==0){
+      m = m_right;
+      q = q_right;
+    }else{
+      m = m_left;
+      q = q_left;
+    }
     int x0 = 0;
     int x_width = width;
     float y0 = m * x0 + q;
     float y_width = m * x_width + q;
-    line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(0,0,255), 3, CV_AA); //red lines
-  }
-  /*
-  line( vanishingPointMap, Point( width, height/2), Point( 0, height/2), Scalar(255,0,255), 3, CV_AA); //horizontal line
-  line( vanishingPointMap, Point( width, height*9/10), Point( 0, height*9/10), Scalar(255,0,255), 3, CV_AA); //horizontal line
-  */
-  //Overlap images
-  bitwise_or(src, vanishingPointMap, vanishingPointMap);
-
-
-  //* Compute all intersection points *
-  vector<Point> intersectionPoints = vector<Point>();
-  for(int i = 0; i < m_and_q.size(); i++){
-    Vec2f mq1 = m_and_q[i];
-    for(int k = i; k < m_and_q.size(); k++){
-      //intersection points
-      Vec2f mq2 = m_and_q[k];
-      int x_int = (mq1[1] - mq2[1])/(mq2[0] - mq1[0]);
-      int y_int = mq1[0]*x_int + mq1[1];
-      Point intersection_point = Point(x_int, y_int);
-      if(x_int > 0 && x_int < width && y_int > height/3 && y_int < 2*height/3){ //y_int > 0 && y_int < height
-        intersectionPoints.push_back(intersection_point);
-        //draw intersection
-        circle( vanishingPointMap, intersection_point, 5, Scalar( 255, 255, 255),  2, 2 ); //white dots
-      }
-    }
+    line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(255,0,0), 3, CV_AA); //blue lines
   }
 
-  /*
-  //*** Cluster points and get the biggest one ***
-  vector<Point> cluster_centroids;
-  //find k nearest points to a point
-  for(int i = 0; i < height; i++){  //i row
-    for(int j = 0; j < width; j++){ //j column
-
+  //* Find trapezium points *
+  //Find horizon line
+  int horizon = 0;
+  for(int i=0; i<horizontal_lines.size(); i++){
+    Vec4i l = horizontal_lines[i];
+    int v = vanishing_point.y;
+    if(l[1]>v && (abs(l[1]-v) < height/6) && l[1]>horizon){
+      horizon = l[1];
     }
   }
-
-  //find nearest point to a point
-  for(int )
-*/
-
-  //* Find vanishing point as the average of the intersection points *
-  int x_sum = 0;
-  int y_sum = 0;
-  for(int i = 0; i < intersectionPoints.size(); i++){
-    x_sum += intersectionPoints[i].x;
-    y_sum += intersectionPoints[i].y;
+  //cout << "horizon ************* " << horizon << endl;
+  //cout << "van ************* " << vanishing_point << endl;
+  if(horizon < vanishing_point.y){
+    horizon = vanishing_point.y;
   }
-  if(intersectionPoints.size() > 0){
-    float x_van_point = x_sum/intersectionPoints.size(); //media
-    float y_van_point = y_sum/intersectionPoints.size(); //media
-    //float x_van_point = intersectionPoints[intersectionPoints.size()/2].x; //mediana
-    //float y_van_point = intersectionPoints[intersectionPoints.size()/2].y; //mediana
-    Point new_vanishing_point = Point(x_van_point, y_van_point);
-    //cout << "new_vanishing_point: " << new_vanishing_point << endl;
-    circle( vanishingPointMap, new_vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
-    if(vanishing_point_avg.x == 0 && vanishing_point_avg.y == 0 ){
-      //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
-      vanishing_point_avg = new_vanishing_point;
-    }else{
-      vanishing_point_avg.x -= vanishing_point_avg.x / vanishing_point_window;
-      vanishing_point_avg.y -= vanishing_point_avg.y / vanishing_point_window;
-      vanishing_point_avg.x += new_vanishing_point.x / vanishing_point_window;
-      vanishing_point_avg.y += new_vanishing_point.y / vanishing_point_window;
-      //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
-    }
-    circle( vanishingPointMap, vanishing_point_avg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
+  //horizontal lines
+  int xUp1 = 0;
+  int yUp1 = horizon + 50;//horizon_offset; //height - height/3;
+  int xUp2 = width;
+  int yUp2 = yUp1;
+  int xDown1 = 0;
+  int yDown1 = height; //- height/6;  //height*9/10;
+  int xDown2 = width;
+  int yDown2 = yDown1;
+  float m_up = (float)(yUp2-yUp1)/(xUp2-xUp1);
+  float m_down = (float)(yDown2-yDown1)/(xDown2-xDown1);
+  float q_up = yUp1-m_up*xUp1;
+  float q_down = yDown1-m_up*xDown1;
+  //left intersection points
+  int xIntLeft1 = (q_down - q_left)/(m_left - m_down);
+  int yIntLeft1 = m_left*xIntLeft1 + q_left;
+  int xIntLeft2 = (q_up - q_left)/(m_left - m_up);
+  int yIntLeft2 = m_left*xIntLeft2 + q_left;
+  //right intersection points
+  int xIntRight1 = (q_up - q_right)/(m_right - m_up);
+  int yIntRight1 = m_right*xIntRight1 + q_right;
+  int xIntRight2 = (q_down - q_right)/(m_right - m_down);
+  int yIntRight2 = m_right*xIntRight2 + q_right;
+  circle( vanishingPointMap, Point(xIntRight1, yIntRight1), 5, Scalar( 0, 255, 255),  4, 2 ); //yellow dots
+  circle( vanishingPointMap, Point(xIntRight2, yIntRight2), 5, Scalar( 0, 255, 255),  4, 2 );
+  circle( vanishingPointMap, Point(xIntLeft1, yIntLeft1), 5, Scalar( 0, 255, 255),  4, 2 );
+  circle( vanishingPointMap, Point(xIntLeft2, yIntLeft2), 5, Scalar( 0, 255, 255),  4, 2 );
 
-    Point vanishing_point = vanishing_point_avg;
-    //* Build 2 lines from the vanishing point to the bottom corners *
-    float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
-    float q_left = vanishing_point.y-m_left*vanishing_point.x;
-    float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); //cout << "m right " << m_right << endl;
-    float q_right = vanishing_point.y-m_right*vanishing_point.x;
-    //draw
-    for(int i = 0; i<2; i++){
-      float m,q;
-      if(i==0){
-        m = m_right;
-        q = q_right;
-      }else{
-        m = m_left;
-        q = q_left;
-      }
-      int x0 = 0;
-      int x_width = width;
-      float y0 = m * x0 + q;
-      float y_width = m * x_width + q;
-      line( vanishingPointMap, Point(x0, y0), Point(x_width, y_width), Scalar(255,0,0), 3, CV_AA); //blue lines
-    }
+  //* Return perspective transform points *
+  perspTransfInPoints = vector<Point2f>();
+  perspTransfInPoints.push_back(Point(xIntLeft1, yIntLeft1));
+  perspTransfInPoints.push_back(Point(xIntLeft2, yIntLeft2));
+  perspTransfInPoints.push_back(Point(xIntRight1, yIntRight1));
+  perspTransfInPoints.push_back(Point(xIntRight2, yIntRight2));
 
-    //* Find trapezium points *
-    //Find horizon line
-    int horizon = 0;
-    for(int i=0; i<horizontal_lines.size(); i++){
-      Vec4i l = horizontal_lines[i];
-      int v = vanishing_point.y;
-      if(l[1]>v && (abs(l[1]-v) < height/6) && l[1]>horizon){
-        horizon = l[1];
-      }
-    }
-    //cout << "horizon ************* " << horizon << endl;
-    //cout << "van ************* " << vanishing_point << endl;
-    if(horizon < vanishing_point.y){
-      horizon = vanishing_point.y;
-    }
-    //horizontal lines
-    int xUp1 = 0;
-    int yUp1 = horizon + 50;//horizon_offset; //height - height/3;
-    int xUp2 = width;
-    int yUp2 = yUp1;
-    int xDown1 = 0;
-    int yDown1 = height; //- height/6;  //height*9/10;
-    int xDown2 = width;
-    int yDown2 = yDown1;
-    float m_up = (float)(yUp2-yUp1)/(xUp2-xUp1);
-    float m_down = (float)(yDown2-yDown1)/(xDown2-xDown1);
-    float q_up = yUp1-m_up*xUp1;
-    float q_down = yDown1-m_up*xDown1;
-    //left intersection points
-    int xIntLeft1 = (q_down - q_left)/(m_left - m_down);
-    int yIntLeft1 = m_left*xIntLeft1 + q_left;
-    int xIntLeft2 = (q_up - q_left)/(m_left - m_up);
-    int yIntLeft2 = m_left*xIntLeft2 + q_left;
-    //right intersection points
-    int xIntRight1 = (q_up - q_right)/(m_right - m_up);
-    int yIntRight1 = m_right*xIntRight1 + q_right;
-    int xIntRight2 = (q_down - q_right)/(m_right - m_down);
-    int yIntRight2 = m_right*xIntRight2 + q_right;
-    circle( vanishingPointMap, Point(xIntRight1, yIntRight1), 5, Scalar( 0, 255, 255),  4, 2 ); //yellow dots
-    circle( vanishingPointMap, Point(xIntRight2, yIntRight2), 5, Scalar( 0, 255, 255),  4, 2 );
-    circle( vanishingPointMap, Point(xIntLeft1, yIntLeft1), 5, Scalar( 0, 255, 255),  4, 2 );
-    circle( vanishingPointMap, Point(xIntLeft2, yIntLeft2), 5, Scalar( 0, 255, 255),  4, 2 );
+}
 
-    //* Return perspective transform points *
-    perspTransfInPoints = vector<Point2f>();
-    perspTransfInPoints.push_back(Point(xIntLeft1, yIntLeft1));
-    perspTransfInPoints.push_back(Point(xIntLeft2, yIntLeft2));
-    perspTransfInPoints.push_back(Point(xIntRight1, yIntRight1));
-    perspTransfInPoints.push_back(Point(xIntRight2, yIntRight2));
-
-  }
-
-  displayImg("vanishingPointMap",vanishingPointMap);
-  return perspTransfInPoints;
+displayImg("vanishingPointMap",vanishingPointMap);
+return perspTransfInPoints;
 
 }
 
@@ -796,8 +865,8 @@ Mat computeCombinedBinaryThresholding(Mat src){
   //bitwise_and(abs_grad_x, abs_grad_y, abs_grad_x);
 
   inRange(vanishingPointMap, 50,255, vanishingPointMap); //Scalar(150, 150, 150)
-  adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,105,0);
-  //threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY | THRESH_OTSU);
+  //adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,105,0);
+  threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY +te  THRESH_OTSU);
 
   inRange(abs_grad_x, 50, 255 , abs_grad_x); //Scalar(255, 255, 255)
   adaptiveThreshold(abs_grad_x,abs_grad_x,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,33,0);
@@ -845,10 +914,16 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
     perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
   }
   if(perspTransfInPoints.size()>0){ //If vanishing point has been found
+    /* new school*/
+    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));
+    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));
+    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));
+    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));
+    /*old school
     perspTransfOutPoints.push_back(Point2f( 0,height));
     perspTransfOutPoints.push_back(Point2f( 0, 0));
     perspTransfOutPoints.push_back(Point2f( width, 0));
-    perspTransfOutPoints.push_back(Point2f( width, height));
+    perspTransfOutPoints.push_back(Point2f( width, height));*/
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
 
     //* Curve Mask *
@@ -866,18 +941,21 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
     vector<Point> rightRectCenters;
     vector<Point> leftBarycenters;
     vector<Point> rightBarycenters;
-    findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters);
-    findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters);
+    int mask_offset = height/mask_offset_ratio;
+    cout << "left curve" << endl;
+    findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
+    cout << "right curve" << endl;
+    findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
     //* Fit curves *
     //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
 
-    vector<float> leftBeta = polyFit(leftBarycenters,wip, 2);
+    vector<float> leftBeta = polyFit(leftBarycenters,wip, order);
     vector<Point> fittedRight;
     vector<Point> fittedLeft;
     if(leftBeta.size() > 0){
       fittedLeft = computePoly(leftBeta, height);
     }
-    vector<float> rightBeta = polyFit(rightBarycenters,wip, 2);
+    vector<float> rightBeta = polyFit(rightBarycenters,wip, order);
     if(rightBeta.size() > 0){
       fittedRight = computePoly(rightBeta, height);
     }
@@ -891,16 +969,16 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
 
 
     //* Classify Curves *
-    bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
-    bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
+    //bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
+    //bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
 
 
     //* Find average curve *
     vector<float> avgBeta = vector<float>();
     vector<Point> avgCurve;
-    if(some_right && some_left){
-      for(int i=0; i<lastOkBetaLeft.size(); i++){
-        avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
+    if(leftBeta.size() > 0 && rightBeta.size() > 0){//some_right && some_left){
+      for(int i=0; i<leftBeta.size(); i++){
+        avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);//avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
       }
       avgCurve = computePoly(avgBeta, height);
     }

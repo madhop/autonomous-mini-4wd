@@ -14,7 +14,7 @@ using namespace cv;
 /** @function main */
 int main( int argc, char** argv ){
   //* Load video *
-  VideoCapture cap(0);//"http://192.168.1.6:8080/?action=stream");//argv[1]); // open the default camera
+  VideoCapture cap(argv[1]);//"http://192.168.1.6:8080/?action=stream");//argv[1]); // open the default camera
   if(!cap.isOpened()){  // check if we succeeded
     return -1;
   }
@@ -82,7 +82,7 @@ for(;;){
   displayImg("src", src);
 
   //* Kill frame *
-  waitKey(1);
+  waitKey(0);
 
 
 }
