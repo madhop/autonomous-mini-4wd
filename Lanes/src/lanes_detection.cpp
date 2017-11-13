@@ -866,7 +866,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
 
   inRange(vanishingPointMap, 50,255, vanishingPointMap); //Scalar(150, 150, 150)
   //adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,105,0);
-  threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY +te  THRESH_OTSU);
+  threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY |  THRESH_OTSU);
 
   inRange(abs_grad_x, 50, 255 , abs_grad_x); //Scalar(255, 255, 255)
   adaptiveThreshold(abs_grad_x,abs_grad_x,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,33,0);
