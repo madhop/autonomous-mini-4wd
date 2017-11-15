@@ -3,55 +3,158 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
-#include "lanes_detection.h"
 #include <sys/time.h>
 
 using namespace std;
 using namespace cv;
 
-//* Global variables *
-#define canny_low_threshold 50
-#define canny_high_threshold_ratio 3
-#define canny_kernel 3
-#define blur_kernel 5
-#define mask_offset_ratio 3
-#define rect_width_ratio 5
-#define rect_offset_ratio 20
-#define n_rect 20
-#define rect_thickness_ratio 200
-#define tot_min_weight 10
-#define max_dir_changes 5
-#define straight_tolerance_ratio 80
-#define max_rmse_ratio 70
-#define max_bad_curves 3
-#define min_good_curves 1
-#define min_barycenters 5 //in realtà andrebbe messo come ratio e diviso per n_rect
-#define next_bary_max_distance 50 //anche qui va messo ratio
-#define rmse_tolerance 20
-#define min_similar_curves 3
-#define adj_rmse_threshold 30
-#define n_long_lines 20 //number of lines for vanishing point
-#define max_slope 10
-#define min_slope 0.1
-#define window_width 800
-#define window_height 500
-#define horizon_offset_ratio 5
-#define straight_range 3 //cambiare con ratio
-#define vanishing_point_window 10
-#define vanishing_point_window_offset 1
-#define order 2
-#define n_barycenters_window 3
 
-//* Colors *
-const Scalar rect_color = Scalar(0,0,255);
-const Scalar last_ok_fitted_color = Scalar(255,0,0);
-const Scalar avg_curve_avg = Scalar(0,255,255);
-const Scalar cur_fitted_color = Scalar(0,255,0);
-const Scalar white_filtering_threshold = Scalar(120, 120, 120);
+/*
+ * Lanes detection class
+ */
+class LanesDetection{
+  int canny_low_threshold;
+  int canny_high_threshold_ratio;
+  int canny_kernel;
+  int blur_kernel;
+  int mask_offset_ratio;
+  int rect_width_ratio;
+  int rect_offset_ratio;
+  int n_rect;
+  int rect_thickness_ratio;
+  int tot_min_weight;
+  int max_dir_changes;
+  int straight_tolerance_ratio;
+  int max_rmse_ratio;
+  int max_bad_curves;
+  int min_good_curves;
+  int min_barycenters; //in realtà andrebbe messo come ratio e diviso per n_rect
+  int next_bary_max_distance; //anche qui va messo ratio
+  int rmse_tolerance;
+  int min_similar_curves;
+  int adj_rmse_threshold;
+  int n_long_lines; //number of lines for vanishing point
+  int max_slope;
+  float min_slope;
+  int window_width;
+  int window_height;
+  int horizon_offset_ratio;
+  int straight_range;//cambiare con ratio
+  int vanishing_point_window;
+  int vanishing_point_window_offset;
+  int order;
+  int n_barycenters_window;
+  //colors
+  Scalar rect_color;
+  Scalar last_ok_fitted_color;
+  Scalar avg_curve_avg;
+  Scalar cur_fitted_color;
+  Scalar white_filtering_threshold;
 
+public:
+  // getter and setter
+  int getCannyLowThreshold();
+  void setCannyLowThreshold(int cannyLowThreshold);
+  int getCannyHighThresholdRatio();
+  void setCannyHighThresholdRatio(int cannyHighThresholdRatio);
+  int getCannyKernel();
+  void setCannyKernel(int cannyKernel);
+  int blurKernel();
+  void blurKernel(int blurKernel);
+  int getMaskOffsetRatio();
+  void setMaskOffsetRatio(int maskOffsetRatio);
+  int getRectWidthRatio();
+  void setRectWidthRatio(int rectWidthRatio);
+  int getRectOffsetRatio();
+  void setRectOffsetRatio(int rectOffsetRatio);
 
-//* Functions *
-void drawRect(vector<Point> rect_points, Scalar rect_color, int height, Mat rectangles){ //draw the rectangles
+  //Constructor
+  LanesDetection();
+  LanesDetection(int canny_low_thr, int canny_high_threshold_rat, int canny_k, int blur_k, int mor, int rwr,
+    int ror, int num_rect, int rtr, int tmw, int mdc, int str, int mrr,
+    int mbc, int mgc, int min_bar, int nbmd, int rmse_tol, int min_similar_c, int adj_rmse_th,
+    int n_long_li, int max_sl, float min_sl, int window_w, int window_h, int horizon_offset_rat, int straight_ran, int vanishing_point_wind,
+    int vanishing_point_window_offs, int ord, int n_bar_window);
+  //functions
+  vector<Point> computeRect(Point center, int rect_width,int rect_height);
+  void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
+  void displayImg(const char* window_name,Mat mat);
+  Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
+  float movingAverage(float avg, float new_sample);
+  Point computeBarycenter(vector<Point> points, Mat mat);
+  vector<float> polyFit(vector<Point> points,Mat mat, int fitOrder);
+  int findHistAcc(Mat mat, int pos);
+  Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
+  float computeRmse(vector<Point> curve1, vector<Point> curve2);
+  int dirChanges(vector<Point> points, int tolerance);
+  bool classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series,
+  int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters, vector<float> beta, vector<float> &lastOkBeta);
+  Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder);
+  int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width,
+  int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset); //pos: 0=left, 1=right
+  vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg);
+  vector<Point> computePoly(vector<float> beta, int n_points);
+  int computeDirection(float actualPos, float desiredPos);
+  Mat computeCombinedBinaryThresholding(Mat src);
+  Mat computeBinaryThresholding(Mat src);
+  int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
+                  vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
+                  vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
+                  bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
+                  int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg);
+};
+
+//Function definition
+//Constructor
+LanesDetection::LanesDetection(){
+  cout << "LANES DETECTION CONSTRUCTED!!" << endl;
+};
+LanesDetection::LanesDetection(int canny_low_thr, int canny_high_threshold_rat, int canny_k, int blur_k, int mor, int rwr,
+  int ror, int num_rect, int rtr, int tmw, int mdc, int str, int mrr,
+  int mbc, int mgc, int min_bar, int nbmd, int rmse_tol, int min_similar_c, int adj_rmse_th,
+  int n_long_li, int max_sl, float min_sl, int window_w, int window_h, int horizon_offset_rat, int straight_ran, int vanishing_point_wind,
+  int vanishing_point_window_offs, int ord, int n_bar_window){
+    cout << "LANES DETECTION CONSTRUCTED!!" << endl;
+    canny_low_threshold = canny_low_thr;
+    canny_high_threshold_ratio = canny_high_threshold_rat;
+    canny_kernel = canny_k;
+    blur_kernel = blur_k;
+    mask_offset_ratio = mor;
+    rect_width_ratio = rwr;
+    rect_offset_ratio = ror;
+    n_rect = num_rect;
+    rect_thickness_ratio = rtr;
+    tot_min_weight = tmw;
+    max_dir_changes = mdc;
+    straight_tolerance_ratio= str;
+    max_rmse_ratio = mrr;
+    max_bad_curves = mbc;
+    min_good_curves = mgc;
+    min_barycenters  = min_bar;
+    next_bary_max_distance = nbmd;
+    rmse_tolerance = rmse_tol;
+    min_similar_curves = min_similar_c;
+    adj_rmse_threshold = adj_rmse_th;
+    n_long_lines = n_long_li;
+    max_slope = max_sl;
+    min_slope = min_sl;
+    window_width = window_w; cout << "window_width 1 : " << window_width << endl;
+    window_height = window_h;
+    horizon_offset_ratio = horizon_offset_rat;
+    straight_range = straight_ran;
+    vanishing_point_window = vanishing_point_wind;
+    vanishing_point_window_offset = vanishing_point_window_offs;
+    order = ord;
+    n_barycenters_window = n_bar_window;
+    //colors
+    rect_color = Scalar(0,0,255);
+    last_ok_fitted_color = Scalar(255,0,0);
+    avg_curve_avg = Scalar(0,255,255);
+    cur_fitted_color = Scalar(0,255,0);
+    white_filtering_threshold = Scalar(120, 120, 120);
+};
+
+void LanesDetection::drawRect(vector<Point> rect_points, Scalar rect_color, int height, Mat rectangles){ //draw the rectangles
   const float thickness = height/rect_thickness_ratio;
   line( rectangles, rect_points[0], rect_points[1], rect_color, thickness, CV_AA);
   line( rectangles, rect_points[1], rect_points[2], rect_color, thickness, CV_AA);
@@ -59,7 +162,7 @@ void drawRect(vector<Point> rect_points, Scalar rect_color, int height, Mat rect
   line( rectangles, rect_points[3], rect_points[0], rect_color, thickness, CV_AA);
 }
 
-vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given the center of the rectangle compute the 4 vertex
+vector<Point> LanesDetection::computeRect(Point center, int rect_width,int rect_height){ //given the center of the rectangle compute the 4 vertex
   vector<Point> points;
   points.push_back(Point(center.x - rect_width/2, center.y + rect_height/2));
   points.push_back(Point(center.x - rect_width/2, center.y - rect_height/2));
@@ -68,13 +171,14 @@ vector<Point> computeRect(Point center, int rect_width,int rect_height){ //given
   return points;
 }
 
-void displayImg(const char* window_name,Mat mat){
+void LanesDetection::displayImg(const char* window_name,Mat mat){
   namedWindow( window_name, WINDOW_NORMAL );
+  cout << "window_width 2 : " << window_width << endl;
   cvResizeWindow(window_name, window_width, window_height);
   imshow( window_name, mat );
 }
 
-Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints){
+Mat LanesDetection::perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints){
   //Perspective Transform
   int width = mat.size().width;
   int height = mat.size().height;
@@ -106,7 +210,7 @@ Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Po
   return mat;
 }
 
-float movingAverage(float avg, float new_sample){
+float LanesDetection::movingAverage(float avg, float new_sample){
   int N = 20;
   if(avg == 0.0){
     return new_sample;
@@ -116,7 +220,7 @@ float movingAverage(float avg, float new_sample){
   return avg;
 }
 
-Point computeBarycenter(vector<Point> points, Mat mat){
+Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat){
   int totWeight = 0;
   Point bar;
   bar.y = 0;
@@ -154,7 +258,7 @@ Point computeBarycenter(vector<Point> points, Mat mat){
 return bar;
 }
 
-vector<float> polyFit(vector<Point> points, Mat mat, int fitOrder){
+vector<float> LanesDetection::polyFit(vector<Point> points, Mat mat, int fitOrder){
   vector<float> beta = vector<float>();
   int width = mat.size().width;
   int height = mat.size().height;
@@ -184,7 +288,7 @@ vector<float> polyFit(vector<Point> points, Mat mat, int fitOrder){
   return beta;
 }
 
-vector<Point> computePoly(vector<float> beta, int n_points){
+vector<Point> LanesDetection::computePoly(vector<float> beta, int n_points){
   vector<Point> fittedPoints = vector<Point>();
   for(int i = 0; i<n_points; i++){
     float fittedX = 0;
@@ -198,7 +302,7 @@ vector<Point> computePoly(vector<float> beta, int n_points){
   return fittedPoints;
 }
 
-int findHistAcc(Mat mat, int pos){
+int LanesDetection::findHistAcc(Mat mat, int pos){
   int width = mat.size().width;
   int height = mat.size().height;
   //Compute Histogram
@@ -245,7 +349,7 @@ int findHistAcc(Mat mat, int pos){
   }
 }
 
-Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
+Mat LanesDetection::curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
   int height = mat.size().height;
   int width = mat.size().width;
   Mat mask = Mat::zeros(height,width, CV_8UC1);
@@ -254,7 +358,7 @@ Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
   return mask;
 }
 
-float computeRmse(vector<Point> curve1, vector<Point> curve2){
+float LanesDetection::computeRmse(vector<Point> curve1, vector<Point> curve2){
   float rmse = rmse_tolerance+1;
   if( curve1.size() > 0 && curve2.size() > 0){
     //RMSE
@@ -267,7 +371,7 @@ float computeRmse(vector<Point> curve1, vector<Point> curve2){
   return rmse;
 }
 
-int dirChanges(vector<Point> points, int tolerance){
+int LanesDetection::dirChanges(vector<Point> points, int tolerance){
   int changes = 0;
   int direction; // -1 = left; 0 = straight; 1 = right
   if(points.size() > 1){
@@ -297,7 +401,7 @@ int dirChanges(vector<Point> points, int tolerance){
 }
 
 
-bool classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters, vector<float> beta, vector<float> &lastOkBeta){
+bool LanesDetection::classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters, vector<float> beta, vector<float> &lastOkBeta){
   //Classify
   bool curve_ok = false; //0 bad  1 good
   vector<Point> lower_rects = curveRectCenters;
@@ -379,7 +483,7 @@ return curve_ok;
 }
 
 //find next rect center
-Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder){
+Point LanesDetection::nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder){
   vector<float> beta = polyFit(points, mat, fitOrder);
 
   int x = 0;
@@ -389,7 +493,7 @@ Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder){
   return Point(x , y);
 }
 
-int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
+int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
   if(some_curve == false){
     cout << "some curve = false" << endl;
     rectCenters = vector<Point>();
@@ -407,7 +511,6 @@ int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> 
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       // compute barycenter
       Point bar = computeBarycenter(rect ,wip);
-      cout << "qui PRENDE!!" << endl;
 
       //compute next rectangle center
       Point nextCenter = Point();
@@ -515,7 +618,7 @@ return 0;
 }
 
 
-vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
+vector<Point2f> LanesDetection::findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
   Mat vanishingPointMap = src.clone();
   int height = src.size().height;
   int width = src.size().width;
@@ -794,7 +897,7 @@ return perspTransfInPoints;
 
 }
 
-int computeDirection(float actualPos, float desiredPos){ // 1 turn right, 0 don't turn, -1 turn left
+int LanesDetection::computeDirection(float actualPos, float desiredPos){ // 1 turn right, 0 don't turn, -1 turn left
 if(desiredPos + straight_range - actualPos <  0){
   return 1;
 }else if(desiredPos - straight_range - actualPos > 0){
@@ -804,7 +907,7 @@ return 0;
 }
 
 
-Mat computeCombinedBinaryThresholding(Mat src){
+Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   int height = src.size().height;
   int width = src.size().width;
   //compute binary image/
@@ -866,7 +969,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
 
   inRange(vanishingPointMap, 50,255, vanishingPointMap); //Scalar(150, 150, 150)
   //adaptiveThreshold(vanishingPointMap,vanishingPointMap,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,105,0);
-  threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY |  THRESH_OTSU);
+  threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY | THRESH_OTSU);
 
   inRange(abs_grad_x, 50, 255 , abs_grad_x); //Scalar(255, 255, 255)
   adaptiveThreshold(abs_grad_x,abs_grad_x,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,33,0);
@@ -884,7 +987,7 @@ Mat computeCombinedBinaryThresholding(Mat src){
   return combined_binary;
 }
 
-int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
+int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
                 vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
                 vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
                 bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
@@ -907,32 +1010,32 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
   //wip = computeCombinedBinaryThresholding(src);
   wip = computeBinaryThresholding(src);
 
-
   //* perspective Transform *
   vector<Point2f> perspTransfOutPoints;
   if(counter >= vanishing_point_window_offset && counter < vanishing_point_window+vanishing_point_window_offset ){//counter==0){
     perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
   }
+
+  // fixed vanishing point
+  //perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
+  vector<Point2f> test_Points;
+  //test_Points = findPerspectiveInPoints(src, vanishing_point_avg);
   if(perspTransfInPoints.size()>0){ //If vanishing point has been found
-    /* new school*/
-    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));
-    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));
-    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));
-    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));
-    /*old school
-    perspTransfOutPoints.push_back(Point2f( 0,height));
-    perspTransfOutPoints.push_back(Point2f( 0, 0));
-    perspTransfOutPoints.push_back(Point2f( width, 0));
-    perspTransfOutPoints.push_back(Point2f( width, height));*/
+    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( 0,height));
+    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( 0, 0));
+    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( width, 0));
+    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( width, height));
+
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
 
-    //* Curve Mask *
+    /* Curve Mask
     if(some_right && some_left){
+      cout << "faccio la maskera!!!" << endl;
       int mask_offset = height/mask_offset_ratio;
       Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
       bitwise_and(wip,mask,wip);
-      //displayImg("Mask",mask);
-    }
+      displayImg("Mask",mask);
+    }*/
 
     //* Find curve points *
     Mat rectangles = wip;
@@ -1017,14 +1120,12 @@ int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOk
     //displayImg("Src",src);
   }
 
-
-
   counter++;
   return turn;
 
 }
 
-Mat computeBinaryThresholding(Mat src){ //thresholding with just adaptive threshold on gray scale image
+Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just adaptive threshold on gray scale image
   int height = src.size().height;
   int width = src.size().width;
   //compute binary image/
