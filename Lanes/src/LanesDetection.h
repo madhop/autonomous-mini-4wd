@@ -67,11 +67,11 @@ using namespace cv;
 
    //Constructor
    LanesDetection();
-   LanesDetection(int canny_low_thr, int canny_high_threshold_rat, int canny_k, int blur_k, int mor, int rwr,
-     int ror, int num_rect, int rtr, int tmw, int mdc, int str, int mrr,
-     int mbc, int mgc, int min_bar, int nbmd, int rmse_tol, int min_similar_c, int adj_rmse_th,
-     int n_long_li, int max_sl, float min_sl, int window_w, int window_h, int horizon_offset_rat, int straight_ran, int vanishing_point_wind,
-     int vanishing_point_window_offs, int ord, int n_bar_window);
+   LanesDetection(int canny_low_threshold, int canny_high_threshold_ratio, int canny_kernel, int blur_kernel, int mask_offset_ratio, int rect_width_ratio,
+     int rect_offset_ratio, int n_rect, int rect_thickness_ratio, int tot_min_weight, int max_dir_changes, int straight_tolerance_ratio, int max_rmse_ratio,
+     int max_bad_curves, int min_good_curves, int min_barycenters, int next_bary_max_distance, int rmse_tolerance, int min_similar_curves, int adj_rmse_threshold,
+     int n_long_lines, int max_slope, float min_slope, int window_width, int window_height, int horizon_offset_ratio, int straight_range, int vanishing_point_window,
+     int vanishing_point_window_offset, int order, int n_barycenters_window);
    //functions
    vector<Point> computeRect(Point center, int rect_width,int rect_height);
    void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);

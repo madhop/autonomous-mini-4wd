@@ -70,11 +70,11 @@ public:
 
   //Constructor
   LanesDetection();
-  LanesDetection(int canny_low_thr, int canny_high_threshold_rat, int canny_k, int blur_k, int mor, int rwr,
-    int ror, int num_rect, int rtr, int tmw, int mdc, int str, int mrr,
-    int mbc, int mgc, int min_bar, int nbmd, int rmse_tol, int min_similar_c, int adj_rmse_th,
-    int n_long_li, int max_sl, float min_sl, int window_w, int window_h, int horizon_offset_rat, int straight_ran, int vanishing_point_wind,
-    int vanishing_point_window_offs, int ord, int n_bar_window);
+  LanesDetection(int canny_low_threshold, int canny_high_threshold_ratio, int canny_kernel, int blur_kernel, int mask_offset_ratio, int rect_width_ratio,
+    int rect_offset_ratio, int n_rect, int rect_thickness_ratio, int tot_min_weight, int max_dir_changes, int straight_tolerance_ratio, int max_rmse_ratio,
+    int max_bad_curves, int min_good_curves, int min_barycenters, int next_bary_max_distance, int rmse_tolerance, int min_similar_curves, int adj_rmse_threshold,
+    int n_long_lines, int max_slope, float min_slope, int window_width, int window_height, int horizon_offset_ratio, int straight_range, int vanishing_point_window,
+    int vanishing_point_window_offset, int order, int n_barycenters_window);
   //functions
   vector<Point> computeRect(Point center, int rect_width,int rect_height);
   void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
@@ -109,43 +109,43 @@ public:
 LanesDetection::LanesDetection(){
   cout << "LANES DETECTION CONSTRUCTED!!" << endl;
 };
-LanesDetection::LanesDetection(int canny_low_thr, int canny_high_threshold_rat, int canny_k, int blur_k, int mor, int rwr,
-  int ror, int num_rect, int rtr, int tmw, int mdc, int str, int mrr,
-  int mbc, int mgc, int min_bar, int nbmd, int rmse_tol, int min_similar_c, int adj_rmse_th,
-  int n_long_li, int max_sl, float min_sl, int window_w, int window_h, int horizon_offset_rat, int straight_ran, int vanishing_point_wind,
-  int vanishing_point_window_offs, int ord, int n_bar_window){
+LanesDetection::LanesDetection(int canny_low_threshold, int canny_high_threshold_ratio, int canny_kernel, int blur_kernel, int mask_offset_ratio, int rect_width_ratio,
+  int rect_offset_ratio, int n_rect, int rect_thickness_ratio, int tot_min_weight, int max_dir_changes, int straight_tolerance_ratio, int max_rmse_ratio,
+  int max_bad_curves, int min_good_curves, int min_barycenters, int next_bary_max_distance, int rmse_tolerance, int min_similar_curves, int adj_rmse_threshold,
+  int n_long_lines, int max_slope, float min_slope, int window_width, int window_height, int horizon_offset_ratio, int straight_range, int vanishing_point_window,
+  int vanishing_point_window_offset, int order, int n_barycenters_window){
     cout << "LANES DETECTION CONSTRUCTED!!" << endl;
-    canny_low_threshold = canny_low_thr;
-    canny_high_threshold_ratio = canny_high_threshold_rat;
-    canny_kernel = canny_k;
-    blur_kernel = blur_k;
-    mask_offset_ratio = mor;
-    rect_width_ratio = rwr;
-    rect_offset_ratio = ror;
-    n_rect = num_rect;
-    rect_thickness_ratio = rtr;
-    tot_min_weight = tmw;
-    max_dir_changes = mdc;
-    straight_tolerance_ratio= str;
-    max_rmse_ratio = mrr;
-    max_bad_curves = mbc;
-    min_good_curves = mgc;
-    min_barycenters  = min_bar;
-    next_bary_max_distance = nbmd;
-    rmse_tolerance = rmse_tol;
-    min_similar_curves = min_similar_c;
-    adj_rmse_threshold = adj_rmse_th;
-    n_long_lines = n_long_li;
-    max_slope = max_sl;
-    min_slope = min_sl;
-    window_width = window_w; cout << "window_width 1 : " << window_width << endl;
-    window_height = window_h;
-    horizon_offset_ratio = horizon_offset_rat;
-    straight_range = straight_ran;
-    vanishing_point_window = vanishing_point_wind;
-    vanishing_point_window_offset = vanishing_point_window_offs;
-    order = ord;
-    n_barycenters_window = n_bar_window;
+    this->canny_low_threshold = canny_low_threshold;
+    this->canny_high_threshold_ratio = canny_high_threshold_ratio;
+    this->canny_kernel = canny_kernel;
+    this->blur_kernel = blur_kernel;
+    this->mask_offset_ratio = mask_offset_ratio;
+    this->rect_width_ratio = rect_width_ratio;
+    this->rect_offset_ratio = rect_offset_ratio;
+    this->n_rect = n_rect;
+    this->rect_thickness_ratio = rect_thickness_ratio;
+    this->tot_min_weight = tot_min_weight;
+    this->max_dir_changes = max_dir_changes;
+    this->straight_tolerance_ratio= straight_tolerance_ratio;
+    this->max_rmse_ratio = max_rmse_ratio;
+    this->max_bad_curves = max_bad_curves;
+    this->min_good_curves = min_good_curves;
+    this->min_barycenters  = min_barycenters;
+    this->next_bary_max_distance = next_bary_max_distance;
+    this->rmse_tolerance = rmse_tolerance;
+    this->min_similar_curves = min_similar_curves;
+    this->adj_rmse_threshold = adj_rmse_threshold;
+    this->n_long_lines = n_long_lines;
+    this->max_slope = max_slope;
+    this->min_slope = min_slope;
+    this->window_width = window_width; cout << "window_width 1 : " << window_width << endl;
+    this->window_height = window_height;
+    this->horizon_offset_ratio = horizon_offset_ratio;
+    this->straight_range = straight_range;
+    this->vanishing_point_window = vanishing_point_window;
+    this->vanishing_point_window_offset = vanishing_point_window_offset;
+    this->order = order;
+    this->n_barycenters_window = n_barycenters_window;
     //colors
     rect_color = Scalar(0,0,255);
     last_ok_fitted_color = Scalar(255,0,0);
