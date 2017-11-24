@@ -4,74 +4,130 @@
 #include <stdio.h>
 #include <iostream>
 
+
 using namespace std;
 using namespace cv;
 /*
  * Lanes detection class
  */
  class LanesDetection{
-   int canny_low_threshold;
-   int canny_high_threshold_ratio;
-   int canny_kernel;
-   int blur_kernel;
-   int mask_offset_ratio;
-   int rect_width_ratio;
-   int rect_offset_ratio;
-   int n_rect;
-   int rect_thickness_ratio;
-   int tot_min_weight;
-   int max_dir_changes;
-   int straight_tolerance_ratio;
-   int max_rmse_ratio;
-   int max_bad_curves;
-   int min_good_curves;
-   int min_barycenters; //in realtà andrebbe messo come ratio e diviso per n_rect
-   int next_bary_max_distance; //anche qui va messo ratio
-   int rmse_tolerance;
-   int min_similar_curves;
-   int adj_rmse_threshold;
-   int n_long_lines; //number of lines for vanishing point
-   int max_slope;
-   float min_slope;
-   int window_width;
-   int window_height;
-   int horizon_offset_ratio;
-   int straight_range;//cambiare con ratio
-   int vanishing_point_window;
-   int vanishing_point_window_offset;
+ private:
+   int cannyLowThreshold;
+   int cannyHighThresholdRatio;
+   int cannyKernel;
+   int blurKernel;
+   int maskOffsetRatio;
+   int rectWidthRatio;
+   int rectOffsetRatio;
+   int nRect;
+   int rectThicknessRatio;
+   int totMinWeight;
+   int maxDirChanges;
+   int straightToleranceRatio;
+   int maxRmseRatio;
+   int maxBadCurves;
+   int minGoodCurves;
+   int minBarycenters;
+   int nextBaryMaxDistance;
+   int rmseTolerance;
+   int minSimilarCurves;
+   int adjRmseThreshold;
+   int nLongLines;
+   float maxSlope;
+   float minSlope;
+   int windowWidth;
+   int windowHeight;
+   int horizonOffsetRatio;
+   int straightRange;
+   int vanishingPointWindow;
+   int vanishingPointWindowOffset;
    int order;
-   int n_barycenters_window;
+   int nBarycentersWindow;
    //colors
-   Scalar rect_color;
-   Scalar last_ok_fitted_color;
-   Scalar avg_curve_avg;
-   Scalar cur_fitted_color;
-   Scalar white_filtering_threshold;
+   Scalar rectColor;
+   Scalar lastOkFittedColor;
+   Scalar avgCurveAvg;
+   Scalar curFittedColor;
+   Scalar whiteFilteringThreshold;
 
  public:
    // getter and setter
    int getCannyLowThreshold();
-   void setCannyLowThreshold(int cannyLowThreshold);
    int getCannyHighThresholdRatio();
-   void setCannyHighThresholdRatio(int cannyHighThresholdRatio);
    int getCannyKernel();
-   void setCannyKernel(int cannyKernel);
-   int blurKernel();
-   void blurKernel(int blurKernel);
+   int getBlurKernel();
    int getMaskOffsetRatio();
-   void setMaskOffsetRatio(int maskOffsetRatio);
    int getRectWidthRatio();
-   void setRectWidthRatio(int rectWidthRatio);
    int getRectOffsetRatio();
+   int getNRect();
+   int getRectThicknessRatio();
+   int getTotMinWeight();
+   int getMaxDirChanges();
+   int getStraightToleranceRatio();
+   int getMaxRmseRatio();
+   int getMaxBadCurves();
+   int getMinGoodCurves();
+   int getMinBarycenters();
+   int getNextBaryMaxDistance();
+   int getRmseTolerance();
+   int getMinSimilarCurves();
+   int getAdjRmseThreshold();
+   int getNLongLines();
+   float getMaxSlope();
+   float getMinSlope();
+   int getWindowWidth();
+   int getWindowHeight();
+   int getHorizonOffsetRatio();
+   int getStraightRange();
+   int getVanishingPointWindow();
+   int getVanishingPointWindowOffset();
+   int getOrder();
+   int getNBarycentersWindow();
+   Scalar getRectColor();
+   Scalar getLastOkFittedColor();
+   Scalar getAvgCurveAvg();
+   Scalar getCurFittedColor();
+   Scalar getWhiteFilteringThreshold();
+
+   void setNRect(int nRect);
+   void setRectThicknessRatio(int rectThicknessRatio);
+   void setTotMinWeight(int totMinWeight);
+   void setMaxDirChanges(int maxDirChanges);
+   void setStraightToleranceRatio(int straightToleranceRatio);
+   void setMaxRmseRatio(int maxRmseRatio);
+   void setMaxBadCurves(int setMaxBadCurves);
+   void setMinGoodCurves(int minGoodCurves);
+   void setMinBarycenters(int minBarycenters);
+   void setNextBaryMaxDistance(int nextBaryMaxDistance);
+   void setRmseTolerance(int rmseTolerance);
+   void setMinSimilarCurves(int minSimilarCurves);
+   void setAdjRmseThreshold(int adjRmseThreshold);
+   void setNLongLines(int nLongLines);
+   void setMaxSlope(float maxSlope);
+   void setMinSlope(float minSlope);
+   void setWindowWidth(int windowWidth);
+   void setWindowHeight(int windowHeight);
+   void setHorizonOffsetRatio(int horizonOffsetRatio);
+   void setStraightRange(int straightRange);
+   void setVanishingPointWindow(int vanishingPointWindow);
+   void setVanishingPointWindowOffset(int vanishingPointWindowOffset);
+   void setOrder(int order);
+   void setNBarycentersWindow(int nBarycentersWindow);
+   void setRectColor(Scalar rectColor);
+   void setLastOkFittedColor(Scalar lastOkFittedColor);
+   void setAvgCurveAvg(Scalar avgCurveAvg);
+   void setCurFittedColor(Scalar curFittedColor);
+   void setWhiteFilteringThreshold(Scalar whiteFilteringThreshold);
+   void setCannyLowThreshold(int cannyLowThreshold);
+   void setCannyHighThresholdRatio(int cannyHighThresholdRatio);
+   void setCannyKernel(int cannyKernel);
+   void setBlurKernel(int blurKernel);
+   void setMaskOffsetRatio(int maskOffsetRatio);
+   void setRectWidthRatio(int rectWidthRatio);
    void setRectOffsetRatio(int rectOffsetRatio);
 
    //Constructor
    LanesDetection();
-   LanesDetection(int canny_low_threshold, int canny_high_threshold_ratio, int canny_kernel, int blur_kernel, int mask_offset_ratio, int rect_width_ratio,
-     int rect_offset_ratio, int n_rect, int rect_thickness_ratio, int tot_min_weight, int max_dir_changes, int straight_tolerance_ratio, int max_rmse_ratio,
-     int max_bad_curves, int min_good_curves, int min_barycenters, int next_bary_max_distance, int rmse_tolerance, int min_similar_curves, int adj_rmse_threshold,
-     int n_long_lines, int max_slope, float min_slope, int window_width, int window_height, int horizon_offset_ratio, int straight_range, int vanishing_point_window,
-     int vanishing_point_window_offset, int order, int n_barycenters_window);
    //functions
    vector<Point> computeRect(Point center, int rect_width,int rect_height);
    void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
