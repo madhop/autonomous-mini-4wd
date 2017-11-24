@@ -50,7 +50,7 @@ for(;;){
   cout << "elapsed time: " << endMillis - startMillis << endl;*/
 
   cap >> src;
-  
+
   int turn = lanesDetection.detectLanes(src);
   cout << "turn: " << turn << endl;
 
