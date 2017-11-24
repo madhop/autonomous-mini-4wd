@@ -379,42 +379,36 @@ float LanesDetection::movingAverage(float avg, float new_sample){
   return avg;
 }
 
-Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat){
-  int totWeight = 0;
-  Point bar;
-  bar.y = 0;
-  bar.x = 0;
-  for(int j = points[0].y; j > points[1].y; j--){
-    int weight = 0;
-    for(int k = points[0].x; k < points[3].x; k++){
-      int intensity = mat.at<uchar>(j, k);
-      if(intensity == 255){
-        weight ++;
-        totWeight++;
-      }
-    }
-    bar.y += j*weight;
+Point LanesDetection::laneConnectedComponent(Mat mat){
+  Point connectedBaricenter;
+  Mat labels;
+  Mat stats;
+  Mat centroids;
+  connectedComponentsWithStats(mat, labels, stats, centroids);
+  //cout << "centroids 1: " << centroids.at<double>(1,0) << endl;
+  for(int i = 1; i <= centroids.size().height; i++){
+    //circle( mat, Point(centroids.at<double>(i,0), centroids.at<double>(i,1)), 5, Scalar( 0, 255, 0 ),  3, 3 );
   }
-  totWeight=0;
-  for(int j = points[0].x; j < points[3].x; j++){
-    int weight = 0;
-    for(int k = points[0].y; k > points[1].y; k--){
-      int intensity = mat.at<uchar>(k, j);
-      if(intensity == 255){
-        weight ++;
-        totWeight++;
-      }
-    }
-    bar.x += j*weight;
-  }
-  if(totWeight>totMinWeight){//xWeight!=0 && yWeight!=0){ //if no line is detected no barycenter is added or even if it's just a random bunch of pixels
-  bar.y /= totWeight;
-  bar.x /= totWeight;
-}else{
-  bar.x = -1;
-  bar.y = -1;
+  cout << "centroids x: " << centroids.at<double>(1,0) << "centroids y: " << centroids.at<double>(1,1) << endl;
+  //TODO between all centroids chose the best
+  connectedBaricenter = Point(centroids.at<double>(1,0), centroids.at<double>(1,1));
+  circle( mat, connectedBaricenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
+  displayImg("ROI",mat);
+  return connectedBaricenter;
 }
-return bar;
+
+Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat){//Point topLeftVertix, int rect_width,int rect_height, Mat mat
+  Point barycenter;
+  Point bottomLeft = points[0];
+  Point topRight = points[2];
+  if(bottomLeft.x < 0){
+    bottomLeft.x = 0;
+  }
+  Rect rectROI = Rect(bottomLeft, topRight);
+  Mat ROI = mat( rectROI);
+  Point relativeBarycenter  = laneConnectedComponent(ROI);
+  barycenter = Point(points[1].x + relativeBarycenter.x, points[1].y + relativeBarycenter.y);
+  return barycenter;
 }
 
 vector<float> LanesDetection::polyFit(vector<Point> points, Mat mat, int fitOrder){

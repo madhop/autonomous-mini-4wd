@@ -134,6 +134,7 @@ using namespace cv;
    void displayImg(const char* window_name,Mat mat);
    Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
    float movingAverage(float avg, float new_sample);
+   Point laneConnectedComponent(Mat mat);
    Point computeBarycenter(vector<Point> points, Mat mat);
    vector<float> polyFit(vector<Point> points,Mat mat, int fitOrder);
    int findHistAcc(Mat mat, int pos);
