@@ -49,6 +49,36 @@ using namespace cv;
    Scalar avgCurveAvg;
    Scalar curFittedColor;
    Scalar whiteFilteringThreshold;
+   //Dynamic attributes
+   bool someLeft;
+   bool someRight;
+   int leftBadSeries;
+   int rightBadSeries;
+   int rightOkSeries;
+   int leftOkSeries;
+   int rightSimilarSeries;
+   int leftSimilarSeries;
+   Point vanishingPointAvg;
+   vector<Point> lastOkFittedRight;
+   vector<Point> lastOkFittedLeft;
+   vector<Point> lastOkRightRectCenters;
+   vector<Point> lastOkLeftRectCenters;
+   vector<Point> lastFittedRight;
+   vector<Point> lastFittedLeft;
+   vector<Point2f> perspTransfInPoints;
+   vector<float> lastOkBetaLeft;
+   vector<float> lastOkBetaRight;
+   int counter;
+   //camera calibration
+   double fxRatio;
+   double cxRatio;
+   double fyRatio;
+   double cyRatio;
+   double dist1;
+   double dist2;
+   double dist5;
+
+
 
  public:
    // getter and setter
@@ -88,6 +118,13 @@ using namespace cv;
    Scalar getAvgCurveAvg();
    Scalar getCurFittedColor();
    Scalar getWhiteFilteringThreshold();
+   double getFxRatio();
+   double getCxRatio();
+   double getFyRatio();
+   double getCyRatio();
+   double getDist1();
+   double getDist2();
+   double getDist5();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -125,6 +162,13 @@ using namespace cv;
    void setMaskOffsetRatio(int maskOffsetRatio);
    void setRectWidthRatio(int rectWidthRatio);
    void setRectOffsetRatio(int rectOffsetRatio);
+   void setFxRatio(double fxRatio);
+   void setCxRatio(double cxRatio);
+   void setFyRatio(double fyRatio);
+   void setCyRatio(double cyRatio);
+   void setDist1(double dist1);
+   void setDist2(double dist2);
+   void setDist5(double dist5);
 
    //Constructor
    LanesDetection();
@@ -134,6 +178,7 @@ using namespace cv;
    void displayImg(const char* window_name,Mat mat);
    Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
    float movingAverage(float avg, float new_sample);
+   Mat calibrateCamera(Mat in);
    Point laneConnectedComponent(Mat mat);
    Point computeBarycenter(vector<Point> points, Mat mat);
    vector<float> polyFit(vector<Point> points,Mat mat, int fitOrder);
@@ -151,9 +196,5 @@ using namespace cv;
    int computeDirection(float actualPos, float desiredPos);
    Mat computeCombinedBinaryThresholding(Mat src);
    Mat computeBinaryThresholding(Mat src);
-   int detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
-                   vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
-                   vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
-                   bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
-                   int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg);
+   int detectLanes(Mat src);
  };

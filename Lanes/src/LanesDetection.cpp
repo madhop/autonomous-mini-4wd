@@ -10,11 +10,6 @@ using namespace std;
 using namespace cv;
 
 //* Global variables *
-
-
-//Function definition
-//Constructor
-
 const int canny_low_threshold = 50;
 const int canny_high_threshold_ratio = 3;
 const int canny_kernel = 3;
@@ -51,8 +46,19 @@ const Scalar last_ok_fitted_color = Scalar(255,0,0);
 const Scalar avg_curve_avg = Scalar(0,255,255);
 const Scalar cur_fitted_color = Scalar(0,255,0);
 const Scalar white_filtering_threshold = Scalar(120, 120, 120);
+//camera calibration
+const double fx_ratio =  0.4544404367948488;
+const double cx_ratio = 0.5008333333333333;
+const double fy_ratio = 807.894109857508963;
+const double cy_ratio = 0.5014814814814815;
+const double dist_1 = -2.6760855717017523e-01;
+const double dist_2 = 8.9295931009928706e-02;
+const double dist_5 = -1.4378376364459476e-02;
 
 
+
+//Function definition
+//Constructor
 LanesDetection::LanesDetection(){
     this->cannyLowThreshold = canny_low_threshold;
     this->cannyHighThresholdRatio = canny_high_threshold_ratio;
@@ -91,6 +97,27 @@ LanesDetection::LanesDetection(){
     this->avgCurveAvg = avg_curve_avg;
     this->curFittedColor = cur_fitted_color;
     this->whiteFilteringThreshold = white_filtering_threshold;
+    //dynamic attributes
+    this->someLeft = false;
+    this->someRight = false;
+    this->leftBadSeries = 0;
+    this->rightBadSeries = 0;
+    this->rightOkSeries = 0;
+    this->leftOkSeries = 0;
+    this->rightSimilarSeries = 0;
+    this->leftSimilarSeries = 0;
+    this->vanishingPointAvg = Point(0,0);
+    this->counter = 0;
+    //camera calibration
+    this->fxRatio = fx_ratio;
+    this->cxRatio = cx_ratio;
+    this->fyRatio = fy_ratio;
+    this->cyRatio = cy_ratio;
+    this->dist1 = dist_1;
+    this->dist2 = dist_2;
+    this->dist5 = dist_5;
+
+
 
 };
 
@@ -202,6 +229,27 @@ Scalar LanesDetection::getCurFittedColor(){
 Scalar LanesDetection::getWhiteFilteringThreshold(){
   return whiteFilteringThreshold;
 }
+double LanesDetection::getFxRatio(){
+  return fxRatio;
+}
+double LanesDetection::getCxRatio(){
+  return cxRatio;
+}
+double LanesDetection::getFyRatio(){
+  return fyRatio;
+}
+double LanesDetection::getCyRatio(){
+  return cyRatio;
+}
+double LanesDetection::getDist1(){
+  return dist1;
+}
+double LanesDetection::getDist2(){
+  return dist2;
+}
+double LanesDetection::getDist5(){
+  return dist2;
+}
 
 
 void LanesDetection::setCannyLowThreshold(int cannyLowThreshold){
@@ -312,6 +360,27 @@ void LanesDetection::setCurFittedColor(Scalar curFittedColor){
 void LanesDetection::setWhiteFilteringThreshold(Scalar whiteFilteringThreshold){
   this->whiteFilteringThreshold = whiteFilteringThreshold;
 }
+void LanesDetection::setFxRatio(double fxRatio){
+  this->fxRatio = fxRatio;
+}
+void LanesDetection::setCxRatio(double cxRatio){
+  this->cxRatio = cxRatio;
+}
+void LanesDetection::setFyRatio(double fyRatio){
+  this->fyRatio = fyRatio;
+}
+void LanesDetection::setCyRatio(double cyRatio){
+  this->cyRatio = cyRatio;
+}
+void LanesDetection::setDist1(double dist1){
+  this->dist1 = dist1;
+}
+void LanesDetection::setDist2(double dist2){
+  this->dist2 = dist2;
+}
+void LanesDetection::setDist5(double dist5){
+  this->dist5 = dist5;
+}
 
 
 void LanesDetection::drawRect(vector<Point> rect_points, Scalar rectColor, int height, Mat rectangles){ //draw the rectangles
@@ -379,6 +448,25 @@ float LanesDetection::movingAverage(float avg, float new_sample){
   return avg;
 }
 
+Mat LanesDetection::calibrateCamera(Mat in){
+  Mat out = in.clone();
+  double width = in.size().width;
+  double height = in.size().height;
+
+  Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
+  cameraMatrix.at<double>(0,0) = width*fx_ratio;
+  cameraMatrix.at<double>(0,2) = width*cx_ratio;
+  cameraMatrix.at<double>(1,1) = height*fy_ratio;
+  cameraMatrix.at<double>(1,2) = height*cy_ratio;
+
+  Mat distCoeffs = Mat::zeros(5, 1, CV_64F);
+  distCoeffs.at<double>(0,0) = dist1;
+  distCoeffs.at<double>(0,1) = dist2;
+  distCoeffs.at<double>(0,4) = dist5;
+  undistort(in, out, cameraMatrix, distCoeffs);
+  return out;
+}
+
 Point LanesDetection::laneConnectedComponent(Mat mat){
   Point connectedBaricenter;
   Mat labels;
@@ -389,7 +477,7 @@ Point LanesDetection::laneConnectedComponent(Mat mat){
   for(int i = 1; i <= centroids.size().height; i++){
     //circle( mat, Point(centroids.at<double>(i,0), centroids.at<double>(i,1)), 5, Scalar( 0, 255, 0 ),  3, 3 );
   }
-  cout << "centroids x: " << centroids.at<double>(1,0) << "centroids y: " << centroids.at<double>(1,1) << endl;
+
   //TODO between all centroids chose the best
   connectedBaricenter = Point(centroids.at<double>(1,0), centroids.at<double>(1,1));
   circle( mat, connectedBaricenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
@@ -647,7 +735,7 @@ Point LanesDetection::nextRectCenter(int y, vector<Point> points, Mat mat, int f
 
 int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
   if(some_curve == false){
-    cout << "some curve = false" << endl;
+
     rectCenters = vector<Point>();
     //First rectangle
     int firstX = findHistAcc(wip, pos); //0 means left
@@ -658,7 +746,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
     rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
     //Other rectangles
     for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
-      cout << "center: " << rectCenters[i] << endl;
+
       //Compute rectangle
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       // compute barycenter
@@ -674,15 +762,15 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       }
       if(barycenters.size() > 2){ // if more than n barycenters where found, find the next center fitting a parabola //(barycenters.size() >= order + minBarycenters)
         nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip, 2);
-        cout << "nextCenter: " << nextCenter << endl;
+
       }else if(barycenters.size() > 1){
         vector<Point> lastNBar = vector<Point>();
         for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
           lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-          cout << "bary: " << barycenters[barycenters.size()-1-j] << endl;
+
         }
         nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-        cout << "nextCenter: " << nextCenter << endl;
+
       }else{
         nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
       }
@@ -713,12 +801,10 @@ drawRect(rect, rectColor, height, rectangles);
 }
 }
 else {
-  cout << "some curve = true" << endl;
+
 
   rectCenters = lastOkRectCenters;
-  for(int h = 0; h<lastOkRectCenters.size(); h++){
-    cout << "lastOkRectCenters " << h << ": " << lastOkRectCenters[h] << endl;
-  }
+
   int i = 0;
   int k;
   for(int i=0;i<nRect;i++){
@@ -727,7 +813,7 @@ else {
     Point bar = computeBarycenter(rect ,wip);
     Point nextCenter = Point();
     if(bar.x!=-1 && bar.y!=-1 ){
-      //cout << "entrato!!! k:" << k << " - offset: " << offset/2 <<  endl;
+
       rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
 
       rectCenters[i].x = bar.x; //comment for fixed rectangles
@@ -745,15 +831,15 @@ else {
       vector<Point> lastNBar = vector<Point>();
       for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
         lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-        cout << "bary: " << barycenters[barycenters.size()-1-j] << endl;
+
       }
       nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
       rectCenters[i+1] = nextCenter;
-      cout << "nextCenter: " << nextCenter << endl;
+
     }else{
       nextCenter = Point(rectCenters[i].x, rectCenters[i+1].y);
     }
-    cout << "nextCenter: " << nextCenter << endl;
+
 
   /*if(i<nRect-1){ // update for next rectangle as well
   rectCenters[i+1].x = rectCenters[i].x;}*/
@@ -769,7 +855,7 @@ return 0;
 }
 
 
-vector<Point2f> LanesDetection::findPerspectiveInPoints(Mat src, Point &vanishing_point_avg){
+vector<Point2f> LanesDetection::findPerspectiveInPoints(Mat src, Point &vanishingPointAvg){
   Mat vanishingPointMap = src.clone();
   int height = src.size().height;
   int width = src.size().width;
@@ -956,19 +1042,19 @@ if(intersectionPoints.size() > 0){
   Point new_vanishing_point = Point(x_van_point, y_van_point);
   //cout << "new_vanishing_point: " << new_vanishing_point << endl;
   circle( vanishingPointMap, new_vanishing_point, 5, Scalar( 0, 255, 0),  4, 4 ); //green dot
-  if(vanishing_point_avg.x == 0 && vanishing_point_avg.y == 0 ){
-    //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
-    vanishing_point_avg = new_vanishing_point;
+  if(vanishingPointAvg.x == 0 && vanishingPointAvg.y == 0 ){
+    //cout << "vanishingPointAvg: " << vanishingPointAvg << endl;
+    vanishingPointAvg = new_vanishing_point;
   }else{
-    vanishing_point_avg.x -= vanishing_point_avg.x / vanishingPointWindow;
-    vanishing_point_avg.y -= vanishing_point_avg.y / vanishingPointWindow;
-    vanishing_point_avg.x += new_vanishing_point.x / vanishingPointWindow;
-    vanishing_point_avg.y += new_vanishing_point.y / vanishingPointWindow;
-    //cout << "vanishing_point_avg: " << vanishing_point_avg << endl;
+    vanishingPointAvg.x -= vanishingPointAvg.x / vanishingPointWindow;
+    vanishingPointAvg.y -= vanishingPointAvg.y / vanishingPointWindow;
+    vanishingPointAvg.x += new_vanishing_point.x / vanishingPointWindow;
+    vanishingPointAvg.y += new_vanishing_point.y / vanishingPointWindow;
+    //cout << "vanishingPointAvg: " << vanishingPointAvg << endl;
   }
-  circle( vanishingPointMap, vanishing_point_avg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
+  circle( vanishingPointMap, vanishingPointAvg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
 
-  Point vanishing_point = vanishing_point_avg;
+  Point vanishing_point = vanishingPointAvg;
   //* Build 2 lines from the vanishing point to the bottom corners *
   float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
   float q_left = vanishing_point.y-m_left*vanishing_point.x;
@@ -1138,11 +1224,7 @@ Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   return combined_binary;
 }
 
-int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vector<Point> &lastOkFittedLeft, vector<Point> &lastOkRightRectCenters,
-                vector<Point> &lastOkLeftRectCenters, vector<Point> &lastFittedRight, vector<Point> &lastFittedLeft,
-                vector<Point2f> &perspTransfInPoints, vector<float> &lastOkBetaLeft, vector<float> &lastOkBetaRight,
-                bool &some_left, bool &some_right, int &left_bad_series, int &right_bad_series, int &right_ok_series,
-                int &left_ok_series, int &right_similar_series, int &left_similar_series, int &counter, Point &vanishing_point_avg){
+int LanesDetection::detectLanes(Mat src){
 
   //cout << "* frame *" << endl;
   int turn = 0;
@@ -1157,21 +1239,23 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
   const int max_rmse = height/maxRmseRatio; //height perchè la parabola orizzontale è calcolata da x a y
 
   //Camera calibration
+  src = calibrateCamera(src);
 
+  wip = src.clone();
   //*** Binary thresholding ***
   //wip = computeCombinedBinaryThresholding(src);
-  wip = computeBinaryThresholding(src);
+  wip = computeBinaryThresholding(wip);
 
   //* perspective Transform *
   vector<Point2f> perspTransfOutPoints;
   if(counter >= vanishingPointWindowOffset && counter < vanishingPointWindow+vanishingPointWindowOffset ){//counter==0){
-    perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
+    perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
   }
 
   // fixed vanishing point
-  //perspTransfInPoints = findPerspectiveInPoints(src, vanishing_point_avg);
+  //perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
   vector<Point2f> test_Points;
-  //test_Points = findPerspectiveInPoints(src, vanishing_point_avg);
+  //test_Points = findPerspectiveInPoints(src, vanishingPointAvg);
   if(perspTransfInPoints.size()>0){ //If vanishing point has been found
     perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( 0,height));
     perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( 0, 0));
@@ -1181,7 +1265,7 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
 
     /* Curve Mask
-    if(some_right && some_left){
+    if(someRight && someLeft){
       cout << "faccio la maskera!!!" << endl;
       int mask_offset = height/maskOffsetRatio;
       Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
@@ -1190,6 +1274,7 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
     }*/
 
     //* Find curve points *
+    Mat rect_persp;
     Mat rectangles = wip;
     cvtColor( rectangles, rectangles, CV_GRAY2BGR );
     vector<Point> leftRectCenters; //filled by function findCurvePoints
@@ -1197,13 +1282,10 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
     vector<Point> leftBarycenters;
     vector<Point> rightBarycenters;
     int mask_offset = height/maskOffsetRatio;
-    cout << "left curve" << endl;
-    findCurvePoints(some_left, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
-    cout << "right curve" << endl;
-    findCurvePoints(some_right, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
+    findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
+    findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
     //* Fit curves *
     //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
-    cout << "order " << order << endl;
     vector<Point> fittedRight;
     vector<Point> fittedLeft;
     vector<float> leftBeta = polyFit(leftBarycenters,wip, order);
@@ -1224,14 +1306,14 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
 
 
     //* Classify Curves *
-    //bool right_ok = classifyCurve(fittedRight, some_right, right_similar_series, right_bad_series, right_ok_series, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
-    //bool left_ok = classifyCurve(fittedLeft, some_left, left_similar_series, left_bad_series, left_ok_series, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
+    //bool right_ok = classifyCurve(fittedRight, someRight, rightSimilarSeries, rightBadSeries, rightOkSeries, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
+    //bool left_ok = classifyCurve(fittedLeft, someLeft, leftSimilarSeries, leftBadSeries, leftOkSeries, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
 
 
     //* Find average curve *
     vector<float> avgBeta = vector<float>();
     vector<Point> avgCurve;
-    if(leftBeta.size() > 0 && rightBeta.size() > 0){//some_right && some_left){
+    if(leftBeta.size() > 0 && rightBeta.size() > 0){//someRight && someLeft){
       for(int i=0; i<leftBeta.size(); i++){
         avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);//avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
       }
@@ -1239,10 +1321,6 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
     }
     polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
 
-
-    //*** Inverse perspective transform ***
-    /*
-      rectangles = perspectiveTransform(rectangles,perspTransfOutPoints,perspTransfInPoints);*/
 
     //Find direction
     float dir = 0;
@@ -1259,18 +1337,21 @@ int LanesDetection::detectLanes(Mat src, vector<Point> &lastOkFittedRight, vecto
 
 
     turn = computeDirection(dir, width/2);
-    /*if(turn == 1){
-      cout << "turn right" << endl;
-    }else if(turn == -1){
-      cout << "turn left" << endl;
-    }else{
-      cout << "go straight" << endl;
-    }*/
+
     //* Display Images *
     displayImg("Rectangles",rectangles);
     //displayImg("Wip",wip);
     //displayImg("Src",src);
+
+    //*** Inverse perspective transform ***
+    rect_persp = rectangles.clone();
+    perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints);
+    Mat out;
+    addWeighted( src, 1, rect_persp, 1, 0.0, out);
+    displayImg("Output", out);
   }
+  displayImg("Input",src);
+
 
   counter++;
   return turn;

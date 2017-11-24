@@ -33,30 +33,9 @@ int main( int argc, char** argv ){
   */
 
 
-vector<Point> lastOkFittedRight;
-vector<Point> lastOkFittedLeft;
-vector<Point> lastOkRightRectCenters;
-vector<Point> lastOkLeftRectCenters;
-vector<Point> lastFittedRight;
-vector<Point> lastFittedLeft;
-vector<Point2f> perspTransfInPoints;
-vector<float> lastOkBetaLeft;
-vector<float> lastOkBetaRight;
 
-bool some_left = false;
-bool some_right = false;
-int left_bad_series = 0;
-int right_bad_series = 0;
-int right_ok_series = 0;
-int left_ok_series = 0;
-int right_similar_series = 0;
-int left_similar_series = 0;
-Point vanishing_point_avg = Point(0,0);
-
-int counter = 0;
 
 LanesDetection lanesDetection = LanesDetection();
-cout << lanesDetection.getWindowWidth() << endl;
   //LanesDetection *lanesDetection = new LanesDetection();
 
 for(;;){
@@ -65,26 +44,19 @@ for(;;){
   timeval start;
   gettimeofday(&start, NULL);
   long startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-
   timeval end;
   gettimeofday(&end, NULL);
   long endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
   cout << "elapsed time: " << endMillis - startMillis << endl;*/
 
   cap >> src;
-  lanesDetection.displayImg("src", src);
-
-  int turn = lanesDetection.detectLanes(src,lastOkFittedRight, lastOkFittedLeft, lastOkRightRectCenters, lastOkLeftRectCenters,
-                        lastFittedRight, lastFittedLeft, perspTransfInPoints, lastOkBetaLeft, lastOkBetaRight,
-                        some_left, some_right, left_bad_series, right_bad_series, right_ok_series,
-                        left_ok_series, right_similar_series, left_similar_series, counter, vanishing_point_avg);
-
+  
+  int turn = lanesDetection.detectLanes(src);
   cout << "turn: " << turn << endl;
-
 
   //* Write to video *
   //outputVideo << src;
-  lanesDetection.displayImg("src", src);
+
 
   //* Kill frame *
   waitKey(0);
