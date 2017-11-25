@@ -487,86 +487,66 @@ int LanesDetection::distPointToLine(Point P1, Point P2, Point point){
 
 Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, Point firstRectCenter, vector<Point> barycenters){
   Point relativeBarycenter;
-  Point barycenter;
+  Point barycenter = Point(-1,-1);
   Point bottomLeft = points[0];
   Point topRight = points[2];
 
-  /*TODO mettere dentro l'if
-
-  if((0 <= rectROI.x && 0 <= rectROI.width && rectROI.x + rectROI.width <= mat.cols && 0 <= rectROI.y && 0 <= rectROI.height && rectROI.y + rectROI.height <= mat.rows)){
-  }else{
-    cout << "rectROI.x: " << rectROI.x << "; bottomLeft.x: " << bottomLeft.x << endl;
-    cout << "topRight.x: " << topRight.x << "; topRight.y: " << topRight.y << endl;
-    cout << "rectROI.width: " << rectROI.width << endl;
-    cout << "rectROI.x + rectROI.width: " << rectROI.x + rectROI.width << endl;
-    cout << "mat.cols: " << mat.cols << endl;
-    cout << "rectROI.y: " << rectROI.y << endl;
-    cout << "rectROI.height: " << rectROI.height << endl;
-    cout << "rectROI.y + rectROI.height: " << rectROI.y + rectROI.height << endl;
-    cout << "mat.rows: " << mat.rows << endl;
-    waitKey(0);
-  }
-
-
-  //fine di quello da mettere dentro l'if*/
-
-  if(topRight.x >= 0 && bottomLeft.x <= mat.cols){
+  if(topRight.x > 0 && bottomLeft.x < mat.cols){
+    //keep the ROI inside the matrix
     if(bottomLeft.x < 0){
       bottomLeft.x = 0;
     }
     if(topRight.x > mat.cols){
       topRight.x = mat.cols;
     }
+    //compute centroids inside the ROI
     Rect rectROI = Rect(bottomLeft, topRight);
     Mat ROI = mat(rectROI);
+
     vector<Point> centroids = laneConnectedComponent(ROI);
 
-    vector<float> beta;
-
-    Point P1;
-    Point P2;
-    Point absoluteCentroid;
-    if(barycenters.size() <= 1){
-      barycenter = Point(points[1].x + centroids[0].x, points[1].y + centroids[0].y);
-    }else{
-      if(barycenters.size() > 2){
-        beta = polyFit(points, mat, 2);
-      }else if(barycenters.size() > 1){
-        beta = polyFit(points, mat, 1);
-      }
-      //compute distance between the curve and each centroid -> chose the one closer to the curve
-      float x1 = 0;
-      float x2 = 0;
-      for(int i = 0; i<beta.size(); i++){
-        x1 += beta[i]*pow(bottomLeft.y,i);
-        x2 += beta[i]*pow(topRight.y,i);
-      }
-      P1 = Point(x1, bottomLeft.y);
-      P2 = Point(x2, topRight.y);
-
-      barycenter = Point(points[1].x + centroids[0].x, points[1].y + centroids[0].y);
-      float minDist = distPointToLine(P1, P2, barycenter);
-      //cout << "DIST 1: " << distPointToLine(P1, P2, barycenter) << endl;
-      //cout << "centroids.size(): " << centroids.size() << endl;
-      for(int i = 1; i < centroids.size(); i++){
-        absoluteCentroid = Point(points[1].x + centroids[i].x, points[1].y + centroids[i].y);
-        int dist = distPointToLine(P1, P2, absoluteCentroid);
-        //cout << "DIST " << i+1 << ": " << dist << endl;
-        if(dist < minDist){
-          minDist = dist;
-          barycenter = absoluteCentroid;
+    if(centroids.size() > 0){
+      vector<float> beta;
+      Point P1;
+      Point P2;
+      Point absoluteCentroid;
+      if(barycenters.size() <= 1){
+        barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+      }else{
+        if(barycenters.size() > 2){
+          beta = polyFit(points, mat, 2);
+        }else if(barycenters.size() > 1){
+          beta = polyFit(points, mat, 1);
         }
-        //cout << "I chose: " << minDist << endl;
+        //compute distance between the curve and each centroid -> chose the one closer to the curve
+        float x1 = 0;
+        float x2 = 0;
+        for(int i = 0; i<beta.size(); i++){
+          x1 += beta[i]*pow(bottomLeft.y,i);
+          x2 += beta[i]*pow(topRight.y,i);
+        }
+        P1 = Point(x1, bottomLeft.y);
+        P2 = Point(x2, topRight.y);
+
+        barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+        float minDist = distPointToLine(P1, P2, barycenter);
+        //cout << "DIST 1: " << distPointToLine(P1, P2, barycenter) << endl;
+        //cout << "centroids.size(): " << centroids.size() << endl;
+        for(int i = 1; i < centroids.size(); i++){
+          absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
+          int dist = distPointToLine(P1, P2, absoluteCentroid);
+          //cout << "DIST " << i+1 << ": " << dist << endl;
+          if(dist < minDist){
+            minDist = dist;
+            barycenter = absoluteCentroid;
+          }
+        }
       }
-      //cout << "barycenter: " << barycenter << endl;
+      circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
+      //circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
+      //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
+      displayImg("barycenter",mat);
     }
-    circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
-    circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
-    circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
-    displayImg("barycenter",mat);
-  }else{
-    barycenter.x = -1;
-    barycenter.y = -1;
   }
   //cout << "BARYCENTER: " << barycenter << endl;
   return barycenter;
