@@ -15,7 +15,7 @@ const int canny_high_threshold_ratio = 3;
 const int canny_kernel = 3;
 const int blur_kernel = 5;
 const int mask_offset_ratio = 3;
-const int rect_width_ratio = 5;
+const int rect_width_ratio = 9;
 const int rect_offset_ratio = 20;
 const int n_rect = 20;
 const int rect_thickness_ratio = 200;
@@ -596,23 +596,19 @@ vector<Point> LanesDetection::computePoly(vector<float> beta, int n_points){
   return fittedPoints;
 }
 
-int LanesDetection::findHistAcc(Mat mat, int pos){
+int LanesDetection::findHistAcc(Mat mat, int pos, int rect_offset){
   int width = mat.size().width;
   int height = mat.size().height;
   //Compute Histogram
   int histogram[width];
-  int max = 0;
   for(int i = 0; i<width; i++){
     int sum = 0;
-    for(int j = height/2; j < height; j ++){
+    for(int j = height-(height/10); j < (height-rect_offset); j ++){//for(int j = height/2; j < height; j ++){
       Scalar intensity = mat.at<uchar>(j, i);
       if(intensity.val[0] == 255){
         sum++;
       }
       histogram[i] = sum;
-      if(sum > max){
-        max = sum;
-      }
     }
   }
   //Find max left and min left
@@ -736,7 +732,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
   if(some_curve == false){
     rectCenters = vector<Point>();
     //First rectangle
-    int firstX = findHistAcc(wip, pos); //0 means left
+    int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
     if(firstX == -1){  //in caso non trovi il massimo
       firstX = width/4;
     }
@@ -780,50 +776,48 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
     }
   }else {
 
-      rectCenters = vector<Point>();
-      //First rectangle
-      int firstX = findHistAcc(wip, pos); //0 means left
-      if(firstX == -1){  //in caso non trovi il massimo
-        firstX = width/4;
+    rectCenters = vector<Point>();
+    //First rectangle
+    int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
+    if(firstX == -1){  //in caso non trovi il massimo
+      firstX = width/4;
+    }
+
+    rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
+    //Other rectangles
+    for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
+      //Compute rectangle
+      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
+      // compute barycenter
+      Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
+
+      //compute next rectangle center
+      Point nextCenter = Point();
+      if(bar.x!=-1 && bar.y!=-1 ){
+        rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+        barycenters.push_back(bar);
+        rectCenters[i].x = bar.x;
+        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
       }
 
-      rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
-      //Other rectangles
-      for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
-
-        //Compute rectangle
-        vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-        // compute barycenter
-        Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
-
-        //compute next rectangle center
-        Point nextCenter = Point();
-        if(bar.x!=-1 && bar.y!=-1 ){
-          rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
-          barycenters.push_back(bar);
-          rectCenters[i].x = bar.x;
-          circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
+      if(barycenters.size() > 1){
+        vector<Point> lastNBar = vector<Point>();
+        for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
+          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
         }
+        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
 
-        if(barycenters.size() > 1){
-          vector<Point> lastNBar = vector<Point>();
-          for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-            lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-
-          }
-          nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-
-        }else{
-          nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
-        }
-
-        if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
-          rectCenters.push_back(nextCenter);
-        }
-
-        //Draw rectangle
-        drawRect(rect, rectColor, height, rectangles);
+      }else{
+        nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
       }
+
+      if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
+        rectCenters.push_back(nextCenter);
+      }
+
+      //Draw rectangle
+      drawRect(rect, rectColor, height, rectangles);
+    }
     /*rectCenters = lastOkRectCenters;
     int i = 0;
     int k;

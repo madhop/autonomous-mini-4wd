@@ -183,7 +183,7 @@ using namespace cv;
    int distPointToLine(Point P1, Point P2, Point point);
    Point computeBarycenter(vector<Point> points, Mat mat, Point firstRectCenter, vector<Point> barycenters);
    vector<float> polyFit(vector<Point> points,Mat mat, int fitOrder);
-   int findHistAcc(Mat mat, int pos);
+   int findHistAcc(Mat mat, int pos, int rect_offset);
    Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
    float computeRmse(vector<Point> curve1, vector<Point> curve2);
    int dirChanges(vector<Point> points, int tolerance);
