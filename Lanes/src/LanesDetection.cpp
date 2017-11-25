@@ -475,9 +475,9 @@ vector<Point> LanesDetection::laneConnectedComponent(Mat mat){
   connectedComponentsWithStats(mat, labels, stats, centroids);
   for(int i = 1; i < centroids.size().height; i++){
     relativeCentroids.push_back(Point(centroids.at<double>(i,0), centroids.at<double>(i,1)));
-    circle( mat, relativeCentroids[relativeCentroids.size()-1], 5, Scalar( 0, 255, 0 ),  3, 3 );
+    //circle( mat, relativeCentroids[relativeCentroids.size()-1], 5, Scalar( 0, 255, 0 ),  3, 3 );
   }
-  displayImg("ROI",mat);
+  //displayImg("ROI",mat);
   return relativeCentroids;
 }
 
@@ -485,7 +485,11 @@ int LanesDetection::distPointToLine(Point P1, Point P2, Point point){
   return ( abs( (P2.x-P1.x)*point.y - (P2.y-P1.y)*point.x + (P2.y)*(P1.x) - (P2.x)*(P1.y) ) ) / ( sqrt( pow(P2.y-P1.y, 2) + pow(P2.x-P1.x, 2) ) );
 }
 
-Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, Point firstRectCenter, vector<Point> barycenters){
+int LanesDetection::distPointToPoint(Point P1, Point P2){
+  return sqrt(  pow(P1.x-P2.x, 2) + pow(P1.y-P2.y, 2)  );
+}
+
+Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Point> lastOkRectCenters, vector<Point> barycenters){
   Point relativeBarycenter;
   Point barycenter = Point(-1,-1);
   Point bottomLeft = points[0];
@@ -510,9 +514,44 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, Point fir
       Point P1;
       Point P2;
       Point absoluteCentroid;
-      if(barycenters.size() <= 1){
-        barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-      }else{
+      float minDist;
+      int dist;
+
+      if(barycenters.size() < 1){ //first rectangle  //TODO what if, for example, the first is missing?
+
+        if(lastOkRectCenters.size() > 0){
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+          minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
+          for(int i = 1; i < centroids.size(); i++){
+            absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
+            dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[0]);
+            if(dist < minDist){
+              minDist = dist;
+              barycenter = absoluteCentroid;
+            }
+          }
+        }else{
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
+        }
+
+      }else if(barycenters.size() == 1) {  //second rectangle
+
+        if(lastOkRectCenters.size() > 1){
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+          minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
+          for(int i = 1; i < centroids.size(); i++){
+            absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
+            dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[1]);
+            if(dist < minDist){
+              minDist = dist;
+              barycenter = absoluteCentroid;
+            }
+          }
+        }else{
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
+        }
+
+      }else{  //if more than 2 barycenters found
         if(barycenters.size() > 2){
           beta = polyFit(points, mat, 2);
         }else if(barycenters.size() > 1){
@@ -529,12 +568,10 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, Point fir
         P2 = Point(x2, topRight.y);
 
         barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-        float minDist = distPointToLine(P1, P2, barycenter);
-        //cout << "DIST 1: " << distPointToLine(P1, P2, barycenter) << endl;
-        //cout << "centroids.size(): " << centroids.size() << endl;
+        minDist = distPointToLine(P1, P2, barycenter);
         for(int i = 1; i < centroids.size(); i++){
           absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
-          int dist = distPointToLine(P1, P2, absoluteCentroid);
+          dist = distPointToLine(P1, P2, absoluteCentroid);
           //cout << "DIST " << i+1 << ": " << dist << endl;
           if(dist < minDist){
             minDist = dist;
@@ -698,8 +735,6 @@ void LanesDetection::classifyCurve(bool &some_curve, int &curve_bad_series, int 
   if(barycenters.size() >= minBarycenters){
     curve_ok = true;
   }
-
-
   //Update states
   if(curve_ok == false){ //Current curve is bad
     curve_ok_series = 0;
@@ -744,7 +779,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       //Compute rectangle
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       // compute barycenter
-      Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
+      Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
 
       //compute next rectangle center
       Point nextCenter = Point();
@@ -770,26 +805,20 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
         rectCenters.push_back(nextCenter);
       }
-
       //Draw rectangle
       drawRect(rect, rectColor, height, rectangles);
     }
-  }else {
-
+    lastOkRectCenters = rectCenters;
+  }else{// some_curve == true
+    Point firstRectCenter = lastOkRectCenters[0];// first rect center = first rect center previous frame
     rectCenters = vector<Point>();
-    //First rectangle
-    int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
-    if(firstX == -1){  //in caso non trovi il massimo
-      firstX = width/4;
-    }
-
-    rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
+    rectCenters.push_back(firstRectCenter);
     //Other rectangles
     for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
       //Compute rectangle
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       // compute barycenter
-      Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
+      Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
 
       //compute next rectangle center
       Point nextCenter = Point();
@@ -848,6 +877,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       drawRect(rect, rectColor, height, rectangles);
 
     }*/
+    lastOkRectCenters = rectCenters;
   }
   return 0;
 }
