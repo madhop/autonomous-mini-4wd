@@ -1060,9 +1060,9 @@ if(intersectionPoints.size() > 0){
 
   Point vanishing_point = vanishingPointAvg;
   //* Build 2 lines from the vanishing point to the bottom corners *
-  float m_left = (float)(height - height/4 - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
+  float m_left = (float)(height - ((height - vanishing_point.y) - (height - vanishing_point.y)/4) - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
   float q_left = vanishing_point.y-m_left*vanishing_point.x;
-  float m_right = (float)(height - height/4 - vanishing_point.y)/(width - vanishing_point.x); //cout << "m right " << m_right << endl;
+  float m_right = (float)(height - ((height - vanishing_point.y) - (height - vanishing_point.y)/4) - vanishing_point.y)/(width - vanishing_point.x); //cout << "m right " << m_right << endl;
   float q_right = vanishing_point.y-m_right*vanishing_point.x;
   //draw
   for(int i = 0; i<2; i++){
@@ -1277,7 +1277,7 @@ int LanesDetection::detectLanes(Mat src){
 
     //* Find curve points *
     Mat rect_persp;
-    Mat rectangles = wip;
+    Mat rectangles = wip.clone();
     cvtColor( rectangles, rectangles, CV_GRAY2BGR );
     vector<Point> leftRectCenters; //filled by function findCurvePoints
     vector<Point> rightRectCenters;
