@@ -25,7 +25,7 @@ const int straight_tolerance_ratio = 80;
 const int max_rmse_ratio = 70;
 const int max_bad_curves = 3;
 const int min_good_curves = 1;
-const int min_barycenters = 5; //in realtà andrebbe messo come ratio e diviso per n_rect
+const int min_barycenters = 2; //in realtà andrebbe messo come ratio e diviso per n_rect
 const int next_bary_max_distance = 50; //anche qui va messo ratio
 const int rmse_tolerance = 20;
 const int min_similar_curves = 3;
@@ -695,84 +695,30 @@ int LanesDetection::dirChanges(vector<Point> points, int tolerance){
 }
 
 
-bool LanesDetection::classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series, int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters, vector<float> beta, vector<float> &lastOkBeta){
+void LanesDetection::classifyCurve(bool &some_curve, int &curve_bad_series, int &curve_ok_series, vector<Point> barycenters){
   //Classify
   bool curve_ok = false; //0 bad  1 good
-  vector<Point> lower_rects = curveRectCenters;
-  vector<Point> upper_rects = curveRectCenters;
 
-  lower_rects.erase(lower_rects.begin());
-  upper_rects.erase(upper_rects.begin()+curveRectCenters.size()-1);
-
-  float adj_rmse = computeRmse(lower_rects,upper_rects);
-
-  //Absolute classification
-  if(adj_rmse > adjRmseThreshold){ //trash curve if its barycenters are too far away one from each other with respect to the x
-    curve_ok = false;
-  }
-  //Relative classification
-  else{
-    if(some_curve){ //If there's a good curve
-    if(computeRmse(fittedCurve,lastOkFittedCurve) < rmseTolerance){//If there's a good curve and current curve is similar to the good one
+  if(barycenters.size() >= minBarycenters){
     curve_ok = true;
-  }else{ //If there's a good curve and current curve is different from the good one
-  if(computeRmse(fittedCurve,lastFittedCurve) < rmseTolerance){ //If there's good curve, the current curve is different from the good one but similar to the previous
-  curve_similar_series++;
-  if(curve_similar_series >= minSimilarCurves){
-    curve_ok = true;
-  }else{
-    curve_ok = false;
   }
-}else{ //If there's a good curve, the current curve is different from the good and the last curve
-curve_similar_series = 0;
-curve_ok = false;
-}
-}
-}
-else{ //If there's not a good curve
-//cout << "computeRmse(fittedCurve,lastFittedCurve): " << computeRmse(fittedCurve,lastFittedCurve) << endl;
-if(computeRmse(fittedCurve,lastFittedCurve) < rmseTolerance){ // If there's no good curve and the current is similar to the previous
-//cout << "no good curve, last 2 similar" << endl;
-curve_similar_series++;
-if(curve_similar_series >= minSimilarCurves){
-  curve_ok = true;
-}else{
-  curve_ok = false;
-}
-}
-else{ //If there's no good curve and the current is different from the previous
-curve_similar_series = 0;
-curve_ok = false;
-}
-}
-}
 
 
-//Update states
-if(curve_ok == false){ //Current curve is bad
-  curve_ok_series = 0;
-  curve_bad_series++;
-}else if(curve_ok == true){ //Current curve is good
-  curve_ok_series++;
-  curve_bad_series = 0;
-}
+  //Update states
+  if(curve_ok == false){ //Current curve is bad
+    curve_ok_series = 0;
+    curve_bad_series++;
+  }else if(curve_ok == true){ //Current curve is good
+    curve_ok_series++;
+    curve_bad_series = 0;
+  }
 
-if(curve_ok_series >= minGoodCurves){
-  //cout << "curve_ok_series: " << curve_ok_series << endl;
-  some_curve = true;
-  lastOkFittedCurve = fittedCurve;
-  lastOkCurveRectCenters = curveRectCenters;
-  lastOkBeta = beta;
-}
-if(curve_bad_series > maxBadCurves){
-  some_curve = false;
-  lastOkFittedCurve = vector<Point>();
-  lastOkCurveRectCenters = vector<Point>();
-  lastOkBeta = vector<float>();
-}
-
-lastFittedCurve = fittedCurve;
-return curve_ok;
+  if(curve_ok_series >= minGoodCurves){
+    some_curve = true;
+  }
+  if(curve_bad_series > maxBadCurves){
+    some_curve = false;
+  }
 }
 
 //find next rect center
@@ -788,7 +734,6 @@ Point LanesDetection::nextRectCenter(int y, vector<Point> points, Mat mat, int f
 
 int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
   if(some_curve == false){
-
     rectCenters = vector<Point>();
     //First rectangle
     int firstX = findHistAcc(wip, pos); //0 means left
@@ -813,9 +758,8 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         rectCenters[i].x = bar.x;
         circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
       }
-      if(barycenters.size() > 2){ // if more than n barycenters where found, find the next center fitting a parabola //(barycenters.size() >= order + minBarycenters)
-        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip, 2);
-      }else if(barycenters.size() > 1){
+
+      if(barycenters.size() > 1){
         vector<Point> lastNBar = vector<Point>();
         for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
           lastNBar.push_back(barycenters[barycenters.size()-1-j]);
@@ -831,79 +775,87 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         rectCenters.push_back(nextCenter);
       }
 
-
-
-    /*if(bar.x!=-1 && bar.y!=-1 ){ //if no line is detected no barycenter is added  && abs(bar.x - rectCenters[i].x)< nextBaryMaxDistance
-    //move rectangle
-    rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
-    rectCenters[i].x = bar.x;
-
-    barycenters.push_back(bar);
-    circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-    nextCenter.x = bar.x;
-  }
-  else{
-  nextCenter.x = rectCenters[i].x;
-}
-nextCenter.y = height - rect_offset - rect_height/2 - (i+1)*rect_height;*/
-
-
-//Draw rectangle
-drawRect(rect, rectColor, height, rectangles);
-}
-}
-else {
-
-
-  rectCenters = lastOkRectCenters;
-
-  int i = 0;
-  int k;
-  for(int i=0;i<nRect;i++){
-    //Compute left rectangle
-    vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-    Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
-    Point nextCenter = Point();
-    if(bar.x!=-1 && bar.y!=-1 ){
-
-      rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
-
-      rectCenters[i].x = bar.x; //comment for fixed rectangles
-      circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-      barycenters.push_back(bar);
-      /*if(i<nRect-1){ // update for next rectangle as well
-      rectCenters[i+1].x = rectCenters[i].x;
-        }*/
+      //Draw rectangle
+      drawRect(rect, rectColor, height, rectangles);
     }
+  }else {
 
-    if(barycenters.size() > 2 ){ // if more than n barycenters where found, find the next center fitting a parabola //(barycenters.size() >= order + minBarycenters && i<nRect-1)
-      nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, barycenters, wip, 2);
-      rectCenters[i+1] = nextCenter;
-    }else if(barycenters.size() > 1){
-      vector<Point> lastNBar = vector<Point>();
-      for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-        lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-
+      rectCenters = vector<Point>();
+      //First rectangle
+      int firstX = findHistAcc(wip, pos); //0 means left
+      if(firstX == -1){  //in caso non trovi il massimo
+        firstX = width/4;
       }
-      nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-      rectCenters[i+1] = nextCenter;
 
-    }else{
-      nextCenter = Point(rectCenters[i].x, rectCenters[i+1].y);
-    }
+      rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
+      //Other rectangles
+      for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
 
+        //Compute rectangle
+        vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
+        // compute barycenter
+        Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
 
-  /*if(i<nRect-1){ // update for next rectangle as well
-  rectCenters[i+1].x = rectCenters[i].x;}*/
-    //Draw left rectangle
-    drawRect(rect, rectColor, height, rectangles);
-    /*k = abs( -(nextCenter.x - beta[0] - beta[1] * nextCenter.y - beta[2] * pow(nextCenter.y,2)) );
-    cout << "nextCenter: " << nextCenter << endl;
-    cout << "k: " << k << endl;*/
-    //i++;
-  }//while(i<nRect && k < offset/2);
-}
-return 0;
+        //compute next rectangle center
+        Point nextCenter = Point();
+        if(bar.x!=-1 && bar.y!=-1 ){
+          rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+          barycenters.push_back(bar);
+          rectCenters[i].x = bar.x;
+          circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
+        }
+
+        if(barycenters.size() > 1){
+          vector<Point> lastNBar = vector<Point>();
+          for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
+            lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+
+          }
+          nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
+
+        }else{
+          nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
+        }
+
+        if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
+          rectCenters.push_back(nextCenter);
+        }
+
+        //Draw rectangle
+        drawRect(rect, rectColor, height, rectangles);
+      }
+    /*rectCenters = lastOkRectCenters;
+    int i = 0;
+    int k;
+    for(int i=0;i<nRect;i++){
+      //Compute left rectangle
+      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
+      Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
+      Point nextCenter = Point();
+      if(bar.x!=-1 && bar.y!=-1 ){
+        rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+
+        rectCenters[i].x = bar.x; //comment for fixed rectangles
+        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
+        barycenters.push_back(bar);
+      }
+
+      if(barycenters.size() > 1){
+        vector<Point> lastNBar = vector<Point>();
+        for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
+          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+        }
+        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
+        rectCenters[i+1] = nextCenter;
+      }else{
+        nextCenter = Point(rectCenters[i].x, rectCenters[i+1].y);
+      }
+      //Draw left rectangle
+      drawRect(rect, rectColor, height, rectangles);
+
+    }*/
+  }
+  return 0;
 }
 
 
@@ -1182,19 +1134,17 @@ if(intersectionPoints.size() > 0){
 }
 
 displayImg("vanishingPointMap",vanishingPointMap);
-return perspTransfInPoints;
-
+  return perspTransfInPoints;
 }
 
 int LanesDetection::computeDirection(float actualPos, float desiredPos){ // 1 turn right, 0 don't turn, -1 turn left
-if(desiredPos + straightRange - actualPos <  0){
-  return 1;
-}else if(desiredPos - straightRange - actualPos > 0){
-  return -1;
+  if(desiredPos + straightRange - actualPos <  0){
+    return 1;
+  }else if(desiredPos - straightRange - actualPos > 0){
+    return -1;
+  }
+  return 0;
 }
-return 0;
-}
-
 
 Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   int height = src.size().height;
@@ -1360,7 +1310,8 @@ int LanesDetection::detectLanes(Mat src){
     //* Classify Curves *
     //bool right_ok = classifyCurve(fittedRight, someRight, rightSimilarSeries, rightBadSeries, rightOkSeries, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
     //bool left_ok = classifyCurve(fittedLeft, someLeft, leftSimilarSeries, leftBadSeries, leftOkSeries, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
-
+    classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
+    classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
 
     //* Find average curve *
     vector<float> avgBeta = vector<float>();

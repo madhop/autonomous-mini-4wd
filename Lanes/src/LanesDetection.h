@@ -187,8 +187,7 @@ using namespace cv;
    Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);
    float computeRmse(vector<Point> curve1, vector<Point> curve2);
    int dirChanges(vector<Point> points, int tolerance);
-   bool classifyCurve(vector<Point> &fittedCurve, bool &some_curve, int &curve_similar_series, int &curve_bad_series,
-   int &curve_ok_series, vector<Point> &lastFittedCurve, vector<Point> &lastOkFittedCurve, vector<Point> &lastOkCurveRectCenters, vector<Point> &curveRectCenters, vector<float> beta, vector<float> &lastOkBeta);
+   void classifyCurve(bool &some_curve, int &curve_bad_series, int &curve_ok_series, vector<Point> barycenters);
    Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder);
    int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width,
    int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset); //pos: 0=left, 1=right
