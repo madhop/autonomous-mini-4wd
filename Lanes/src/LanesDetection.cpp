@@ -16,8 +16,8 @@ const int canny_kernel = 3;
 const int blur_kernel = 5;
 const int mask_offset_ratio = 3;
 const int rect_width_ratio = 9;
-const int rect_offset_ratio = 20;
-const int n_rect = 20;
+const int rect_offset_ratio = 200;
+const int n_rect = 10;
 const int rect_thickness_ratio = 200;
 const int tot_min_weight = 10;
 const int max_dir_changes = 5;
@@ -41,11 +41,16 @@ const int vanishing_point_window = 10;
 const int vanishing_point_window_offset = 1;
 const int fit_order = 2;
 const int n_barycenters_window = 3;
+const int partial_fitting_order = 1;
+const bool profile_param = true;
+const bool display_param = false;
+//colors
 const Scalar rect_color = Scalar(0,0,255);
 const Scalar last_ok_fitted_color = Scalar(255,0,0);
 const Scalar avg_curve_avg = Scalar(0,255,255);
 const Scalar cur_fitted_color = Scalar(0,255,0);
 const Scalar white_filtering_threshold = Scalar(120, 120, 120);
+
 //camera calibration
 const double fx_ratio =  0.4544404367948488;
 const double cx_ratio = 0.5008333333333333;
@@ -91,6 +96,9 @@ LanesDetection::LanesDetection(){
     this->vanishingPointWindowOffset = vanishing_point_window_offset;
     this->order = fit_order;
     this->nBarycentersWindow = n_barycenters_window;
+    this->partialFittingOrder = partial_fitting_order;
+    this->profile = profile_param;
+    this->display = display_param;
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -250,6 +258,12 @@ double LanesDetection::getDist2(){
 double LanesDetection::getDist5(){
   return dist2;
 }
+int LanesDetection::getPartialFittingOrder(){
+  return partialFittingOrder;
+}
+bool LanesDetection::getProfile(){
+  return profile;
+}
 
 
 void LanesDetection::setCannyLowThreshold(int cannyLowThreshold){
@@ -381,6 +395,12 @@ void LanesDetection::setDist2(double dist2){
 void LanesDetection::setDist5(double dist5){
   this->dist5 = dist5;
 }
+void LanesDetection::setPartialFittingOrder(int partialFittingOrder){
+  this->partialFittingOrder = partialFittingOrder;
+}
+void LanesDetection::setProfile(bool profile){
+  this->profile = profile;
+}
 
 
 void LanesDetection::drawRect(vector<Point> rect_points, Scalar rectColor, int height, Mat rectangles){ //draw the rectangles
@@ -490,6 +510,9 @@ int LanesDetection::distPointToPoint(Point P1, Point P2){
 }
 
 Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Point> lastOkRectCenters, vector<Point> barycenters){
+  timeval start, end;
+  long startMillis, endMillis;
+
   Point relativeBarycenter;
   Point barycenter = Point(-1,-1);
   Point bottomLeft = points[0];
@@ -503,11 +526,24 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
     if(topRight.x > mat.cols){
       topRight.x = mat.cols;
     }
-    //compute centroids inside the ROI
+
+
+    //***** Compute centroids inside the ROI with connected component *****
     Rect rectROI = Rect(bottomLeft, topRight);
     Mat ROI = mat(rectROI);
 
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
+
     vector<Point> centroids = laneConnectedComponent(ROI);
+
+    if(profile == true){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Connected component computation: " << endMillis - startMillis << endl;
+      }
 
     if(centroids.size() > 0){
       vector<float> beta;
@@ -582,7 +618,10 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
       circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
       //circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
       //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
-      displayImg("barycenter",mat);
+      if(display == true){
+        displayImg("barycenter",mat);
+      }
+
     }
   }
   //cout << "BARYCENTER: " << barycenter << endl;
@@ -760,67 +799,55 @@ Point LanesDetection::nextRectCenter(int y, vector<Point> points, Mat mat, int f
   for(int i = 0; i<beta.size(); i++){
     x += beta[i]*pow(y,i);
   }
-  return Point(x , y);
+  Point p = Point(x , y);
+  return p;
 }
 
 int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
+  timeval start, end;
+  long startMillis, endMillis;
   if(some_curve == false){
     rectCenters = vector<Point>();
-    //First rectangle
+    //**** First rectangle: histogram *****
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
     if(firstX == -1){  //in caso non trovi il massimo
       firstX = width/4;
     }
-
     rectCenters.push_back(Point(firstX, height - rect_offset - rect_height/2));
-    //Other rectangles
-    for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
-
-      //Compute rectangle
-      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-      // compute barycenter
-      Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
-
-      //compute next rectangle center
-      Point nextCenter = Point();
-      if(bar.x!=-1 && bar.y!=-1 ){
-        rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
-        barycenters.push_back(bar);
-        rectCenters[i].x = bar.x;
-        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
+    if(profile == true){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Histogram computation: " << endMillis - startMillis << endl;
       }
 
-      if(barycenters.size() > 1){
-        vector<Point> lastNBar = vector<Point>();
-        for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-
-        }
-        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-
-      }else{
-        nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
-      }
-
-      if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
-        rectCenters.push_back(nextCenter);
-      }
-      //Draw rectangle
-      drawRect(rect, rectColor, height, rectangles);
-    }
-    lastOkRectCenters = rectCenters;
   }else{// some_curve == true
+    //**** First rectangle: previous frame one *****
     Point firstRectCenter = lastOkRectCenters[0];// first rect center = first rect center previous frame
     rectCenters = vector<Point>();
     rectCenters.push_back(firstRectCenter);
-    //Other rectangles
+  }
+    //**** Other rectangles ****
     for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
-      //Compute rectangle
+      //**** Compute current rectangle ****
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-      // compute barycenter
-      Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
 
-      //compute next rectangle center
+      //*** Compute current barycenter ***
+      if(profile == true){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
+      if(profile == true){
+          gettimeofday(&end, NULL);
+          endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+          cout << "Barycenter computation: " << endMillis - startMillis << endl;
+        }
+
+      //**** Re-compute rectangle ****
       Point nextCenter = Point();
       if(bar.x!=-1 && bar.y!=-1 ){
         rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
@@ -829,56 +856,28 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
       }
 
-      if(barycenters.size() > 1){
-        vector<Point> lastNBar = vector<Point>();
-        for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+      //**** Compute next rectangle center *****
+      if(i<nRect-1){
+        if(barycenters.size() > partialFittingOrder){
+          vector<Point> lastNBar = vector<Point>();
+          for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
+            lastNBar.push_back(barycenters[barycenters.size()-1-j]);
+          }
+          nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, partialFittingOrder);
+
+        }else{
+          nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
         }
-        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-
-      }else{
-        nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
-      }
-
-      if(i<nRect-1){ // if we are in the last rectangle, we don't push the next rectangle
         rectCenters.push_back(nextCenter);
+        circle( rectangles, nextCenter, 5, Scalar( 255, 0, 0 ),  10, 3 );
       }
-
-      //Draw rectangle
+      //**** Draw updated rectangle ****
       drawRect(rect, rectColor, height, rectangles);
+
     }
-    /*rectCenters = lastOkRectCenters;
-    int i = 0;
-    int k;
-    for(int i=0;i<nRect;i++){
-      //Compute left rectangle
-      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-      Point bar = computeBarycenter(rect ,wip, rectCenters[0], barycenters);
-      Point nextCenter = Point();
-      if(bar.x!=-1 && bar.y!=-1 ){
-        rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
 
-        rectCenters[i].x = bar.x; //comment for fixed rectangles
-        circle( rectangles, bar, 5, Scalar( 0, 0, 255 ),  3, 3 );
-        barycenters.push_back(bar);
-      }
-
-      if(barycenters.size() > 1){
-        vector<Point> lastNBar = vector<Point>();
-        for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-          lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-        }
-        nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, 1);
-        rectCenters[i+1] = nextCenter;
-      }else{
-        nextCenter = Point(rectCenters[i].x, rectCenters[i+1].y);
-      }
-      //Draw left rectangle
-      drawRect(rect, rectColor, height, rectangles);
-
-    }*/
     lastOkRectCenters = rectCenters;
-  }
+
   return 0;
 }
 
@@ -1157,7 +1156,10 @@ if(intersectionPoints.size() > 0){
 
 }
 
-displayImg("vanishingPointMap",vanishingPointMap);
+  if(display == true){
+    displayImg("vanishingPointMap",vanishingPointMap);
+  }
+
   return perspTransfInPoints;
 }
 
@@ -1252,6 +1254,18 @@ Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
 
 int LanesDetection::detectLanes(Mat src){
 
+  //Profile
+  if(profile == true){
+    cout << "******** New Frame **********" << endl;
+  }
+  timeval start, end, tot_start, tot_end;
+  long startMillis, endMillis, tot_startMillis, tot_endMillis;
+
+  if(profile == true){
+    gettimeofday(&tot_start, NULL);
+    tot_startMillis = (tot_start.tv_sec * 1000) + (tot_start.tv_usec / 1000);
+  }
+
   //cout << "* frame *" << endl;
   int turn = 0;
   //* Capture frame *
@@ -1264,31 +1278,76 @@ int LanesDetection::detectLanes(Mat src){
   const int straight_tolerance = width/straightToleranceRatio;
   const int max_rmse = height/maxRmseRatio; //height perchè la parabola orizzontale è calcolata da x a y
 
-  //Camera calibration
+
+
+
+  //*** Camera calibration ***
+  if(profile == true){
+    gettimeofday(&start, NULL);
+    startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+  }
   src = calibrateCamera(src);
+  if(profile == true){
+    gettimeofday(&end, NULL);
+    endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+    cout << "Camera calibration: " << endMillis - startMillis << endl;
+  }
 
-  wip = src.clone();
+
+
+
   //*** Binary thresholding ***
-  //wip = computeCombinedBinaryThresholding(src);
+  wip = src.clone();
+  if(profile == true){
+    gettimeofday(&start, NULL);
+    startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+  }
   wip = computeBinaryThresholding(wip);
+  if(profile == true){
+    gettimeofday(&end, NULL);
+    endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+    cout << "Binary thresholding: " << endMillis - startMillis << endl;
+  }
 
-  //* perspective Transform *
+  //*** Vanishing Point ***
+  if(profile == true){
+    gettimeofday(&start, NULL);
+    startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+  }
   vector<Point2f> perspTransfOutPoints;
   if(counter >= vanishingPointWindowOffset && counter < vanishingPointWindow+vanishingPointWindowOffset ){//counter==0){
     perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
   }
+  if(profile == true){
+    gettimeofday(&end, NULL);
+    endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+    cout << "Vanishing point: " << endMillis - startMillis << endl;
+  }
+
+
 
   // fixed vanishing point
   //perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
   vector<Point2f> test_Points;
   //test_Points = findPerspectiveInPoints(src, vanishingPointAvg);
   if(perspTransfInPoints.size()>0){ //If vanishing point has been found
+
+    //*** Perspective Transform ***
     perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( 0,height));
     perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( 0, 0));
     perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( width, 0));
     perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( width, height));
 
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Perspective transform: " << endMillis - startMillis << endl;
+    }
 
     /* Curve Mask
     if(someRight && someLeft){
@@ -1299,7 +1358,7 @@ int LanesDetection::detectLanes(Mat src){
       displayImg("Mask",mask);
     }*/
 
-    //* Find curve points *
+    //***** Find curve points ******
     Mat rect_persp;
     Mat rectangles = wip.clone();
     cvtColor( rectangles, rectangles, CV_GRAY2BGR );
@@ -1308,13 +1367,28 @@ int LanesDetection::detectLanes(Mat src){
     vector<Point> leftBarycenters;
     vector<Point> rightBarycenters;
     int mask_offset = height/maskOffsetRatio;
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
     findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
-    //* Fit curves *
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Barycenters computation: " << endMillis - startMillis << endl;
+    }
+
+
+    //**** Fit curves *****
     //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
     vector<Point> fittedRight;
     vector<Point> fittedLeft;
     vector<float> leftBeta = polyFit(leftBarycenters,wip, order);
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     if(leftBeta.size() > 0){
       fittedLeft = computePoly(leftBeta, height);
     }
@@ -1322,22 +1396,39 @@ int LanesDetection::detectLanes(Mat src){
     if(rightBeta.size() > 0){
       fittedRight = computePoly(rightBeta, height);
     }
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Curve fitting: " << endMillis - startMillis << endl;
+    }
 
 
-    //* Draw curves *
+    //*** Draw curves ****
     polylines( rectangles, lastOkFittedRight, 0, lastOkFittedColor, 8, 0);
     polylines( rectangles, lastOkFittedLeft, 0, lastOkFittedColor, 8, 0);
     polylines( rectangles, fittedLeft, 0, curFittedColor, 8, 0);
     polylines( rectangles, fittedRight, 0, curFittedColor, 8, 0);
 
 
-    //* Classify Curves *
-    //bool right_ok = classifyCurve(fittedRight, someRight, rightSimilarSeries, rightBadSeries, rightOkSeries, lastFittedRight, lastOkFittedRight, lastOkRightRectCenters, rightRectCenters, rightBeta, lastOkBetaRight);
-    //bool left_ok = classifyCurve(fittedLeft, someLeft, leftSimilarSeries, leftBadSeries, leftOkSeries, lastFittedLeft, lastOkFittedLeft, lastOkLeftRectCenters, leftRectCenters, leftBeta, lastOkBetaLeft);
+
+    //**** Classify Curves ****
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
     classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Curve classification: " << endMillis - startMillis << endl;
+    }
 
-    //* Find average curve *
+    //**** Find average curve *****
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     vector<float> avgBeta = vector<float>();
     vector<Point> avgCurve;
     if(leftBeta.size() > 0 && rightBeta.size() > 0){//someRight && someLeft){
@@ -1347,12 +1438,20 @@ int LanesDetection::detectLanes(Mat src){
       avgCurve = computePoly(avgBeta, height);
     }
     polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Middle curve computation: " << endMillis - startMillis << endl;
+    }
 
-
-    //Find direction
+    //**** Find direction ****
     float dir = 0;
     float u = 0;
     float p = 0.9;
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     for(int i=0; i<avgCurve.size(); i++){
       //dir+=avgCurve[i].x;
       u = p*u + (1-p);
@@ -1362,25 +1461,53 @@ int LanesDetection::detectLanes(Mat src){
     circle( rectangles, Point(dir,height), 5, Scalar( 0, 255, 0 ),  3, 3 );
     circle( rectangles, Point(width/2,height), 5, Scalar( 0, 100, 255 ),  3, 3 );
 
-
     turn = computeDirection(dir, width/2);
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Direction computation: " << endMillis - startMillis << endl;
+    }
 
-    //* Display Images *
-    displayImg("Rectangles",rectangles);
+    //***** Display Images ******
+    if(display == true){
+      displayImg("Rectangles",rectangles);
+    }
+
     //displayImg("Wip",wip);
     //displayImg("Src",src);
 
     //*** Inverse perspective transform ***
+    if(profile == true){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
     rect_persp = rectangles.clone();
     perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints);
     Mat out;
     addWeighted( src, 1, rect_persp, 1, 0.0, out);
+
     displayImg("Output", out);
+
+    if(profile == true){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Inverse perspective: " << endMillis - startMillis << endl;
+    }
   }
-  displayImg("Input",src);
+  if(display == true){
+    displayImg("Input",src);
+  }
+
 
 
   counter++;
+
+  if(profile == true){
+    gettimeofday(&tot_end, NULL);
+    tot_endMillis  = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);
+    cout << "Tot: " << tot_endMillis - tot_startMillis << endl;
+  }
+
   return turn;
 
 }

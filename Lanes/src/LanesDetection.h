@@ -43,6 +43,9 @@ using namespace cv;
    int vanishingPointWindowOffset;
    int order;
    int nBarycentersWindow;
+   int partialFittingOrder;
+   bool profile;
+   bool display;
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;
@@ -125,6 +128,9 @@ using namespace cv;
    double getDist1();
    double getDist2();
    double getDist5();
+   int getPartialFittingOrder();
+   bool getProfile();
+   bool getDisplay();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -169,6 +175,9 @@ using namespace cv;
    void setDist1(double dist1);
    void setDist2(double dist2);
    void setDist5(double dist5);
+   void setPartialFittingOrder(int partialFittingOrder);
+   void setProfile(bool profile);
+   void setDisplay(bool display);
 
    //Constructor
    LanesDetection();

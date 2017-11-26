@@ -36,7 +36,6 @@ int main( int argc, char** argv ){
 
 
 LanesDetection lanesDetection = LanesDetection();
-  //LanesDetection *lanesDetection = new LanesDetection();
 
 for(;;){
   Mat src;
