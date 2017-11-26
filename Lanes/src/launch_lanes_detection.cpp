@@ -36,31 +36,42 @@ int main( int argc, char** argv ){
 
 
 LanesDetection lanesDetection = LanesDetection();
-
+timeval tot_start, tot_end;
+long tot_startMillis, tot_endMillis;
+gettimeofday(&tot_start, NULL);
+tot_startMillis = (tot_start.tv_sec * 1000) + (tot_start.tv_usec / 1000);
 for(;;){
   Mat src;
-  /*
-  timeval start;
-  gettimeofday(&start, NULL);
-  long startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-  timeval end;
-  gettimeofday(&end, NULL);
-  long endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-  cout << "elapsed time: " << endMillis - startMillis << endl;*/
-
   cap >> src;
+  if(src.empty()){
+    break;
+  }
 
+  /*
+  timeval start, end;
+  long startMillis, endMillis;
+  gettimeofday(&start, NULL);
+  startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+  */
   int turn = lanesDetection.detectLanes(src);
+  /*
   cout << "turn: " << turn << endl;
+  gettimeofday(&end, NULL);
+  endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+  cout << "Frame elapsed time: " << endMillis - startMillis << endl;
+  */
 
   //* Write to video *
   //outputVideo << src;
-
 
   //* Kill frame *
   waitKey(0);
 
 
 }
+gettimeofday(&tot_end, NULL);
+tot_endMillis = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);
+cout << "Tot elapsed time: " << tot_endMillis - tot_startMillis << endl;
+
 return 0;
 }
