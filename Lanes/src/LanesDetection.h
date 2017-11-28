@@ -199,8 +199,9 @@ using namespace cv;
    int dirChanges(vector<Point> points, int tolerance);
    void classifyCurve(bool &some_curve, int &curve_bad_series, int &curve_ok_series, vector<Point> barycenters);
    Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder);
-   int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width,
-   int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset); //pos: 0=left, 1=right
+   int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters,
+      int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles,
+      vector<Point> &lastOkRectCenters, vector<float> &beta, int offset);
    vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg);
    vector<Point> computePoly(vector<float> beta, int n_points);
    int computeDirection(float actualPos, float desiredPos);
