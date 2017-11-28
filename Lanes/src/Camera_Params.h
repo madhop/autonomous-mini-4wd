@@ -1,10 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
-
+#pragma once
 
 using namespace std;
-using namespace cv;
+
 /*
  * Camera Params
  */
@@ -19,8 +19,8 @@ class Camera_Params{
    double dist2;
    double dist5;
  public:
-   Camera_Params(int cameraType);
    Camera_Params();
+   Camera_Params(int cameraType);
    int getCameraType();
    double getFxRatio();
    double getCxRatio();
@@ -30,13 +30,13 @@ class Camera_Params{
    double getDist2();
    double getDist5();
 
-   void setCameraType();
-   void setFxRatio();
-   void setCxRatio();
-   void setFyRatio();
-   void setCyRatio();
-   void setDist1();
-   void setDist2();
-   void setDist5();
+   void setCameraType(int cameraType);
+   void setFxRatio(double fxRatio);
+   void setCxRatio(double cxRatio);
+   void setFyRatio(double fyRatio);
+   void setCyRatio(double cyRatio);
+   void setDist1(double dist1);
+   void setDist2(double dist2);
+   void setDist5(double dist5);
 
  };

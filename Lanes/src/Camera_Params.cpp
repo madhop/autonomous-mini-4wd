@@ -5,9 +5,8 @@
 
 
 using namespace std;
-using namespace cv;
 
-
+Camera_Params::Camera_Params(){}
 Camera_Params::Camera_Params(int cameraType){
 
   double fx_ratio;

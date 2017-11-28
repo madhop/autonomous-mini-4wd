@@ -48,7 +48,7 @@ using namespace cv;
    bool profile;
    bool display;
    int interpolationType;
-   //Camera_Params camera;
+   Camera_Params camera;
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;

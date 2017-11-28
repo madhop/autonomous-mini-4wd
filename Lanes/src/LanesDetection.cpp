@@ -41,13 +41,13 @@ const int horizon_offset_ratio = 5;
 const int straight_range = 3; //cambiare con ratio
 const int vanishing_point_window = 10;
 const int vanishing_point_window_offset = 1;
-const int fit_order = 3;
+const int fit_order = 2;
 const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
 const bool display_param = true;
 const int interpolartion_type = 0; //0: polynomial, 1: b-spline
-const int camera_type = 0; //0:GoPro hero4
+const int camera_type = 0; //0:GoPro hero 4
 //colors
 const Scalar rect_color = Scalar(0,0,255);
 const Scalar last_ok_fitted_color = Scalar(255,0,0);
@@ -104,7 +104,7 @@ LanesDetection::LanesDetection(){
     this->profile = profile_param;
     this->display = display_param;
     this->interpolationType = interpolartion_type;
-    this->camera = Camera_Params(0);
+    //this->camera = Camera_Params(camera_type);
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -1566,6 +1566,7 @@ int LanesDetection::detectLanes(Mat src){
         cout << "Curve fitting: " << endMillis - startMillis << endl;
       }
     }
+
     else if(interpolationType == 1){
       //**** B-spline *******
       if(leftBarycenters.size() > 3){
