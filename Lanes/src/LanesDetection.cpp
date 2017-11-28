@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include "LanesDetection.h"
 #include "tinysplinecpp.h"
+#include "Camera_Params.h"
 
 using namespace std;
 using namespace cv;
@@ -45,6 +46,8 @@ const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
 const bool display_param = true;
+const int interpolartion_type = 0; //0: polynomial, 1: b-spline
+const int camera_type = 0; //0:GoPro hero4
 //colors
 const Scalar rect_color = Scalar(0,0,255);
 const Scalar last_ok_fitted_color = Scalar(255,0,0);
@@ -100,6 +103,8 @@ LanesDetection::LanesDetection(){
     this->partialFittingOrder = partial_fitting_order;
     this->profile = profile_param;
     this->display = display_param;
+    this->interpolationType = interpolartion_type;
+    this->camera = Camera_Params(0);
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -265,6 +270,12 @@ int LanesDetection::getPartialFittingOrder(){
 bool LanesDetection::getProfile(){
   return profile;
 }
+int LanesDetection::getInterpolationType(){
+  return interpolationType;
+}
+Camera_Params LanesDetection::getCamera(){
+  return camera;
+}
 
 
 void LanesDetection::setCannyLowThreshold(int cannyLowThreshold){
@@ -401,6 +412,12 @@ void LanesDetection::setPartialFittingOrder(int partialFittingOrder){
 }
 void LanesDetection::setProfile(bool profile){
   this->profile = profile;
+}
+void LanesDetection::setInterpolationType(int interpolationType){
+  this->interpolationType = interpolationType;
+}
+void LanesDetection::setCamera(int cameraType){
+  this->camera = Camera_Params(cameraType);
 }
 
 
@@ -1265,6 +1282,28 @@ int LanesDetection::computeDirection(float actualPos, float desiredPos){ // 1 tu
   return 0;
 }
 
+
+Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just adaptive threshold on gray scale image
+  int height = src.size().height;
+  int width = src.size().width;
+  //compute binary image/
+  Mat wip  = src.clone();
+  cvtColor( wip, wip, CV_BGR2GRAY );
+
+  for ( int i = 1; i < blurKernel ; i = i + 2 ){
+    GaussianBlur( wip, wip, Size( i, i ), 0, 0, BORDER_DEFAULT );
+  }
+
+  inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
+  //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
+
+  //displayImg("adaptiveThreshold", wip);
+
+  return wip;
+}
+
+
 Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   int height = src.size().height;
   int width = src.size().width;
@@ -1505,97 +1544,101 @@ int LanesDetection::detectLanes(Mat src){
     vector<float> leftBeta;
     vector<float> rightBeta;
 
-
-    //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
-    leftBeta = polyFit(leftBarycenters,wip, order);
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    if(leftBeta.size() > 0){
-      fittedLeft = computePoly(leftBeta, height);
-      lastOkBetaLeft = leftBeta;
-    }
-    rightBeta = polyFit(rightBarycenters,wip, order);
-    if(rightBeta.size() > 0){
-      fittedRight = computePoly(rightBeta, height);
-      lastOkBetaRight = rightBeta;
-    }
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Curve fitting: " << endMillis - startMillis << endl;
-    }
-
-    //**** B-spline *******
-/*
-    if(leftBarycenters.size() > 3){
-      tinyspline::BSpline leftSpline(
-    		3, // ... of degree 3...
-    		2, // ... in 2D...
-    		leftBarycenters.size(), // ... consisting of 7 control points...
-    		TS_CLAMPED // ... using a clamped knot vector.
-    	);
-
-    	// Setup control points.
-    	std::vector<tinyspline::real> leftCtrlp = leftSpline.ctrlp();
-      for(int i=0;i<leftBarycenters.size();i++){
-        leftCtrlp[i*2] = leftBarycenters[i].x;
-        leftCtrlp[i*2+1] = leftBarycenters[i].y;
-
+    if(interpolationType == 0){
+      //* Least squares nth-nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
+      leftBeta = polyFit(leftBarycenters,wip, order);
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
       }
-    	leftSpline.setCtrlp(leftCtrlp);
-
-
-
-    	// Evaluate `spline` at u = 0.4 using 'evaluate'.
-      for(int i=0;i<height;i++){
-        // Stores our evaluation results.
-        float eval = (float) i/(float) height;
-        std::vector<tinyspline::real> result = leftSpline.evaluate(eval).result();
-        fittedLeft.push_back(Point(result[0],result[1]));
-      }
-    }
-    else{
-      leftBeta = polyFit(leftBarycenters,wip,1);
       if(leftBeta.size() > 0){
         fittedLeft = computePoly(leftBeta, height);
+        lastOkBetaLeft = leftBeta;
       }
-    }
-
-
-    if(rightBarycenters.size()>3){
-      tinyspline::BSpline rightSpline(
-        3, // ... of degree 3...
-        2, // ... in 2D...
-        rightBarycenters.size(), // ... consisting of 7 control points...
-        TS_CLAMPED // ... using a clamped knot vector.
-      );
-
-      // Setup control points.
-      std::vector<tinyspline::real> rightCtrlp = rightSpline.ctrlp();
-      for(int i=0;i<rightBarycenters.size();i++){
-        rightCtrlp[i*2] = rightBarycenters[i].x;
-        rightCtrlp[i*2+1] = rightBarycenters[i].y;
-      }
-      rightSpline.setCtrlp(rightCtrlp);
-
-
-
-      // Evaluate `spline` at u = 0.4 using 'evaluate'.
-      for(int i=0;i<height;i++){
-        std::vector<tinyspline::real> result = rightSpline.evaluate((float) i/(float) height).result();
-        fittedRight.push_back(Point(result[0], result[1]));
-      }
-    }
-    else{
       rightBeta = polyFit(rightBarycenters,wip, order);
       if(rightBeta.size() > 0){
         fittedRight = computePoly(rightBeta, height);
+        lastOkBetaRight = rightBeta;
+      }
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Curve fitting: " << endMillis - startMillis << endl;
       }
     }
+    else if(interpolationType == 1){
+      //**** B-spline *******
+      if(leftBarycenters.size() > 3){
+        tinyspline::BSpline leftSpline(
+          3, // ... of degree 3...
+          2, // ... in 2D...
+          leftBarycenters.size(), // ... consisting of 7 control points...
+          TS_CLAMPED // ... using a clamped knot vector.
+        );
 
-*/
+        // Setup control points.
+        std::vector<tinyspline::real> leftCtrlp = leftSpline.ctrlp();
+        for(int i=0;i<leftBarycenters.size();i++){
+          leftCtrlp[i*2] = leftBarycenters[i].x;
+          leftCtrlp[i*2+1] = leftBarycenters[i].y;
+
+        }
+        leftSpline.setCtrlp(leftCtrlp);
+
+
+
+        // Evaluate `spline` at u = 0.4 using 'evaluate'.
+        for(int i=0;i<height;i++){
+          // Stores our evaluation results.
+          float eval = (float) i/(float) height;
+          std::vector<tinyspline::real> result = leftSpline.evaluate(eval).result();
+          fittedLeft.push_back(Point(result[0],result[1]));
+        }
+      }
+      else{
+        leftBeta = polyFit(leftBarycenters,wip,1);
+        if(leftBeta.size() > 0){
+          fittedLeft = computePoly(leftBeta, height);
+        }
+      }
+
+
+      if(rightBarycenters.size()>3){
+        tinyspline::BSpline rightSpline(
+          3, // ... of degree 3...
+          2, // ... in 2D...
+          rightBarycenters.size(), // ... consisting of 7 control points...
+          TS_CLAMPED // ... using a clamped knot vector.
+        );
+
+        // Setup control points.
+        std::vector<tinyspline::real> rightCtrlp = rightSpline.ctrlp();
+        for(int i=0;i<rightBarycenters.size();i++){
+          rightCtrlp[i*2] = rightBarycenters[i].x;
+          rightCtrlp[i*2+1] = rightBarycenters[i].y;
+        }
+        rightSpline.setCtrlp(rightCtrlp);
+
+
+
+        // Evaluate `spline` at u = 0.4 using 'evaluate'.
+        for(int i=0;i<height;i++){
+          std::vector<tinyspline::real> result = rightSpline.evaluate((float) i/(float) height).result();
+          fittedRight.push_back(Point(result[0], result[1]));
+        }
+      }
+      else{
+        rightBeta = polyFit(rightBarycenters,wip, order);
+        if(rightBeta.size() > 0){
+          fittedRight = computePoly(rightBeta, height);
+        }
+      }
+
+
+    }
+
+
+
 
         //**** Classify Curves ****
     /*
@@ -1735,24 +1778,4 @@ int LanesDetection::detectLanes(Mat src){
 
   return turn;
 
-}
-
-Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just adaptive threshold on gray scale image
-  int height = src.size().height;
-  int width = src.size().width;
-  //compute binary image/
-  Mat wip  = src.clone();
-  cvtColor( wip, wip, CV_BGR2GRAY );
-
-  for ( int i = 1; i < blurKernel ; i = i + 2 ){
-    GaussianBlur( wip, wip, Size( i, i ), 0, 0, BORDER_DEFAULT );
-  }
-
-  inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
-  //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
-  threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
-
-  //displayImg("adaptiveThreshold", wip);
-
-  return wip;
 }

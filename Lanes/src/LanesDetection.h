@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
+#include "Camera_Params.h"
 
 
 using namespace std;
@@ -46,6 +47,8 @@ using namespace cv;
    int partialFittingOrder;
    bool profile;
    bool display;
+   int interpolationType;
+   //Camera_Params camera;
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;
@@ -131,6 +134,8 @@ using namespace cv;
    int getPartialFittingOrder();
    bool getProfile();
    bool getDisplay();
+   int getInterpolationType();
+   Camera_Params getCamera();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -178,6 +183,8 @@ using namespace cv;
    void setPartialFittingOrder(int partialFittingOrder);
    void setProfile(bool profile);
    void setDisplay(bool display);
+   void setInterpolationType(int interpolationType);
+   void setCamera(int cameraType);
 
    //Constructor
    LanesDetection();
