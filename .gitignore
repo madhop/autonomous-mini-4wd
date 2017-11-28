@@ -1397,3 +1397,13 @@ cameracalib_prova/out_camera_data\.xml
 cameracalib_prova/run_transform
 
 cameracalib_prova/run_transform\.cpp
+
+test/src/
+
+bspline/
+
+test/CMakeFiles/launch_lanes_detection\.dir/C\.includecache
+
+test/CMakeFiles/launch_lanes_detection\.dir/src/tinyspline\.o
+
+test/CMakeFiles/launch_lanes_detection\.dir/src/tinysplinecpp\.o
