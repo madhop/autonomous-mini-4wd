@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sys/time.h>
 #include "LanesDetection.h"
+#include "tinysplinecpp.h"
 
 using namespace std;
 using namespace cv;
@@ -14,10 +15,10 @@ const int canny_low_threshold = 50;
 const int canny_high_threshold_ratio = 3;
 const int canny_kernel = 3;
 const int blur_kernel = 5;
-const int mask_offset_ratio = 3;
+const int mask_offset_ratio = 10;
 const int rect_width_ratio = 9;
 const int rect_offset_ratio = 200;
-const int n_rect = 10;
+const int n_rect = 20;
 const int rect_thickness_ratio = 200;
 const int tot_min_weight = 10;
 const int max_dir_changes = 5;
@@ -39,7 +40,7 @@ const int horizon_offset_ratio = 5;
 const int straight_range = 3; //cambiare con ratio
 const int vanishing_point_window = 10;
 const int vanishing_point_window_offset = 1;
-const int fit_order = 2;
+const int fit_order = 3;
 const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
@@ -1303,7 +1304,7 @@ int LanesDetection::detectLanes(Mat src){
   const int rect_height = (height - rect_offset)/nRect;
   const int straight_tolerance = width/straightToleranceRatio;
   const int max_rmse = height/maxRmseRatio; //height perchè la parabola orizzontale è calcolata da x a y
-
+  const int mask_offset = height/maskOffsetRatio;
 
 
 
@@ -1319,21 +1320,10 @@ int LanesDetection::detectLanes(Mat src){
     cout << "Camera calibration: " << endMillis - startMillis << endl;
   }
 
-
-
-
-  //*** Binary thresholding ***
   wip = src.clone();
-  if(profile){
-    gettimeofday(&start, NULL);
-    startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-  }
-  wip = computeBinaryThresholding(wip);
-  if(profile){
-    gettimeofday(&end, NULL);
-    endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-    cout << "Binary thresholding: " << endMillis - startMillis << endl;
-  }
+
+
+
 
   //*** Vanishing Point ***
   if(profile){
@@ -1375,14 +1365,46 @@ int LanesDetection::detectLanes(Mat src){
       cout << "Perspective transform: " << endMillis - startMillis << endl;
     }
 
-    /* Curve Mask
-    if(someRight && someLeft){
+    //**** Curve Mask *****
+    /*if(someRight && someLeft){
       cout << "faccio la maskera!!!" << endl;
       int mask_offset = height/maskOffsetRatio;
       Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
       bitwise_and(wip,mask,wip);
       displayImg("Mask",mask);
     }*/
+
+    Mat leftMat = Mat::zeros(height, width, CV_8U);
+    Mat rightMat = Mat::zeros(height, width, CV_8U);
+    if(someLeft && someRight){
+        Mat leftMask = Mat::zeros(height, width, CV_8U);
+        polylines( leftMask, lastOkFittedLeft, 0, 255, mask_offset, 0);
+        wip.copyTo(leftMat,leftMask);
+        Mat rightMask = Mat::zeros(height, width, CV_8U);
+        polylines( rightMask, lastOkFittedRight, 0, 255, mask_offset, 0);
+        wip.copyTo(rightMat,rightMask);
+
+    }
+
+    //*** Binary thresholding ***
+    if(profile){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
+    if(someLeft && someRight){
+      leftMat = computeBinaryThresholding(leftMat);
+      rightMat = computeBinaryThresholding(rightMat);
+    }
+    displayImg("left", leftMat);
+    displayImg("right", rightMat);
+    wip = computeBinaryThresholding(wip);
+
+
+    if(profile){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Binary thresholding: " << endMillis - startMillis << endl;
+    }
 
     //***** Find curve points ******
     Mat rect_persp;
@@ -1392,14 +1414,19 @@ int LanesDetection::detectLanes(Mat src){
     vector<Point> rightRectCenters;
     vector<Point> leftBarycenters;
     vector<Point> rightBarycenters;
-    int mask_offset = height/maskOffsetRatio;
     if(profile){
       gettimeofday(&start, NULL);
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
-    findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
-    findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
-    if(profile){
+    if(someLeft && someRight){
+      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, leftMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
+      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, rightMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
+
+    }else{
+      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
+      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
+    }
+  if(profile){
       gettimeofday(&end, NULL);
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
       cout << "Curve points computation: " << endMillis - startMillis << endl;
@@ -1407,10 +1434,14 @@ int LanesDetection::detectLanes(Mat src){
 
 
     //**** Fit curves *****
-    //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
     vector<Point> fittedRight;
     vector<Point> fittedLeft;
-    vector<float> leftBeta = polyFit(leftBarycenters,wip, order);
+    vector<float> leftBeta;
+    vector<float> rightBeta;
+
+
+    //* Least squares 2nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
+    leftBeta = polyFit(leftBarycenters,wip, order);
     if(profile){
       gettimeofday(&start, NULL);
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
@@ -1418,7 +1449,7 @@ int LanesDetection::detectLanes(Mat src){
     if(leftBeta.size() > 0){
       fittedLeft = computePoly(leftBeta, height);
     }
-    vector<float> rightBeta = polyFit(rightBarycenters,wip, order);
+    rightBeta = polyFit(rightBarycenters,wip, order);
     if(rightBeta.size() > 0){
       fittedRight = computePoly(rightBeta, height);
     }
@@ -1428,6 +1459,108 @@ int LanesDetection::detectLanes(Mat src){
       cout << "Curve fitting: " << endMillis - startMillis << endl;
     }
 
+
+    //**** B-spline *******
+    /*
+    if(leftBarycenters.size() > 3){
+      tinyspline::BSpline leftSpline(
+    		3, // ... of degree 3...
+    		2, // ... in 2D...
+    		leftBarycenters.size(), // ... consisting of 7 control points...
+    		TS_CLAMPED // ... using a clamped knot vector.
+    	);
+
+    	// Setup control points.
+    	std::vector<tinyspline::real> leftCtrlp = leftSpline.ctrlp();
+      for(int i=0;i<leftBarycenters.size();i++){
+        leftCtrlp[i*2] = leftBarycenters[i].x;
+        leftCtrlp[i*2+1] = leftBarycenters[i].y;
+
+      }
+    	leftSpline.setCtrlp(leftCtrlp);
+
+
+
+    	// Evaluate `spline` at u = 0.4 using 'evaluate'.
+      for(int i=0;i<height;i++){
+        // Stores our evaluation results.
+        float eval = (float) i/(float) height;
+        std::vector<tinyspline::real> result = leftSpline.evaluate(eval).result();
+        fittedLeft.push_back(Point(result[0],result[1]));
+      }
+    }
+    else{
+      leftBeta = polyFit(leftBarycenters,wip,1);
+      if(leftBeta.size() > 0){
+        fittedLeft = computePoly(leftBeta, height);
+      }
+    }
+
+
+    if(rightBarycenters.size()>3){
+      tinyspline::BSpline rightSpline(
+        3, // ... of degree 3...
+        2, // ... in 2D...
+        rightBarycenters.size(), // ... consisting of 7 control points...
+        TS_CLAMPED // ... using a clamped knot vector.
+      );
+
+      // Setup control points.
+      std::vector<tinyspline::real> rightCtrlp = rightSpline.ctrlp();
+      for(int i=0;i<rightBarycenters.size();i++){
+        rightCtrlp[i*2] = rightBarycenters[i].x;
+        rightCtrlp[i*2+1] = rightBarycenters[i].y;
+      }
+      rightSpline.setCtrlp(rightCtrlp);
+
+
+
+      // Evaluate `spline` at u = 0.4 using 'evaluate'.
+      for(int i=0;i<height;i++){
+        std::vector<tinyspline::real> result = rightSpline.evaluate((float) i/(float) height).result();
+        fittedRight.push_back(Point(result[0], result[1]));
+      }
+    }
+    else{
+      rightBeta = polyFit(rightBarycenters,wip, order);
+      if(rightBeta.size() > 0){
+        fittedRight = computePoly(rightBeta, height);
+      }
+    }
+    */
+
+
+        //**** Classify Curves ****
+    /*
+    if(profile){
+      gettimeofday(&start, NULL);
+      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    }
+    classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
+    classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
+    if(profile){
+      gettimeofday(&end, NULL);
+      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+      cout << "Curve classification: " << endMillis - startMillis << endl;
+    }*/
+    if(fittedLeft.size()>0){
+      someLeft = true;
+    }else{
+      someLeft = false;
+    }
+    if(fittedRight.size()>0){
+      someRight = true;
+    }else{
+      someRight = false;
+    }
+
+    //****Update curves *****
+    if(someLeft){
+      lastOkFittedLeft = fittedLeft;
+    }
+    if(someRight){
+      lastOkFittedRight = fittedRight;
+    }
 
     //*** Draw curves ****
     if(display){
@@ -1440,18 +1573,6 @@ int LanesDetection::detectLanes(Mat src){
 
 
 
-    //**** Classify Curves ****
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
-    classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Curve classification: " << endMillis - startMillis << endl;
-    }
 
     //**** Find average curve *****
     if(profile){
@@ -1561,8 +1682,8 @@ Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just
   }
 
   inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
-  adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
-  //threshold(vanishingPointMap,vanishingPointMap,0,255,THRESH_BINARY | THRESH_OTSU);
+  //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
+  threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
 
   //displayImg("adaptiveThreshold", wip);
 

@@ -2,5 +2,7 @@
 find_package(OpenCV 3.3.0 REQUIRED)
 project( Lanes )
 find_package( OpenCV REQUIRED )
-add_executable( launch_lanes_detection src/launch_lanes_detection.cpp src/LanesDetection.cpp)
+set (CMAKE_CXX_STANDARD 11)
+add_executable( launch_lanes_detection src/launch_lanes_detection.cpp src/LanesDetection.cpp src/tinyspline.c src/tinysplinecpp.cpp)
 target_link_libraries( launch_lanes_detection ${OpenCV_LIBS} )
+
