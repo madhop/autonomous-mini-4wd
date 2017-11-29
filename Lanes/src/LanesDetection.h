@@ -208,7 +208,7 @@ using namespace cv;
    Point nextRectCenter(int y, vector<Point> points, Mat mat, int fitOrder);
    int findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters,
       int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles,
-      vector<Point> &lastOkRectCenters, vector<float> &beta, int offset);
+      vector<Point> &lastOkRectCenters, vector<float> &beta, int offset, vector<Point> lastOkFitted);
    vector<Point2f> findPerspectiveInPoints(Mat src, Point &vanishing_point_avg);
    vector<Point> computePoly(vector<float> beta, int n_points);
    int computeDirection(float actualPos, float desiredPos);

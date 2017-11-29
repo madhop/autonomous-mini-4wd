@@ -835,7 +835,8 @@ Point LanesDetection::nextRectCenter(int y, vector<Point> points, Mat mat, int f
 }
 
 
-int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height, int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset){ //pos: 0=left, 1=right
+int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters, vector<Point> & barycenters, int pos, Mat wip, int width, int height,
+   int rect_offset, int rect_height, int rect_width, Mat rectangles, vector<Point> &lastOkRectCenters, vector<float> &beta, int offset, vector<Point> lastOkFitted){ //pos: 0=left, 1=right
   timeval start, end;
   long startMillis, endMillis;
   if(some_curve == false){
@@ -912,6 +913,8 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
     //**** rectangles from previous frame *****
     rectCenters = lastOkRectCenters;
     for (int i = 0; i < rectCenters.size(); i++) {
+      Point rCenter = Point(lastOkFitted[lastOkRectCenters[i].y].x, lastOkRectCenters[i].y);
+      rectCenters[i] = rCenter;
       vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       Point barycenter = Point(-1,-1);
       Point bottomLeft = rect[0];
@@ -969,11 +972,11 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       if(barycenter.x!=-1 && barycenter.y!=-1 ){
         barycenters.push_back(barycenter);
         rectCenters[i].x = barycenter.x;
-        if(display){
-          circle( rectangles, barycenter, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
-          //**** Draw updated rectangle ****
-          drawRect(rect, rectColor, height, rectangles);
-        }
+      }
+      if(display){
+        circle( rectangles, barycenter, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
+        //**** Draw updated rectangle ****
+        drawRect(rect, rectColor, height, rectangles);
       }
     }
   }
@@ -1524,12 +1527,12 @@ int LanesDetection::detectLanes(Mat src){
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
     if(someLeft && someRight){
-      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, leftMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
-      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, rightMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
+      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, leftMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
+      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, rightMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
 
     }else{
-      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset);
-      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset);
+      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
+      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
     }
   if(profile){
       gettimeofday(&end, NULL);
