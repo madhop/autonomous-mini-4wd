@@ -78,6 +78,7 @@ using namespace cv;
    int counter;
 
 
+
  public:
    // getter and setter
    int getCannyLowThreshold();
@@ -190,7 +191,7 @@ using namespace cv;
    vector<Point> laneConnectedComponent(Mat mat);
    int distPointToLine(Point P1, Point P2, Point point);
    int distPointToPoint(Point P1, Point P2);
-   Point computeBarycenter(vector<Point> points, Mat mat, vector<Point> lastOkRectCenters, vector<Point> barycenters);
+   Point computeBarycenter(vector<Point> points, Mat mat, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters, vector<Point> barycenters, bool some_curve, vector<Point> lastOkFitted, vector<float> &beta);
    vector<float> polyFit(vector<Point> points,Mat mat, int fitOrder);
    int findHistAcc(Mat mat, int pos, int rect_offset);
    Mat curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset);

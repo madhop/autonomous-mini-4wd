@@ -57,7 +57,6 @@ const Scalar white_filtering_threshold = Scalar(120, 120, 120);
 
 
 
-
 //Function definition
 //Constructor
 LanesDetection::LanesDetection(){
@@ -469,11 +468,9 @@ int LanesDetection::distPointToPoint(Point P1, Point P2){
   return sqrt(  pow(P1.x-P2.x, 2) + pow(P1.y-P2.y, 2)  );
 }
 
-Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Point> lastOkRectCenters, vector<Point> barycenters){
+Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Point> &lastOkRectCenters, vector<Point> &rectCenters, vector<Point> barycenters, bool some_curve, vector<Point> lastOkFitted, vector<float> &beta){
   timeval start, end;
   long startMillis, endMillis;
-
-  Point relativeBarycenter;
   Point barycenter = Point(-1,-1);
   Point bottomLeft = points[0];
   Point topRight = points[2];
@@ -486,77 +483,112 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
     if(topRight.x > mat.cols){
       topRight.x = mat.cols;
     }
-
-
     //***** Compute centroids inside the ROI with connected component *****
     Rect rectROI = Rect(bottomLeft, topRight);
     Mat ROI = mat(rectROI);
-
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-
     vector<Point> centroids = laneConnectedComponent(ROI);
 
-    if(profile){
-        gettimeofday(&end, NULL);
-        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-        cout << "Connected component computation: " << endMillis - startMillis << endl;
-      }
+
+    if (!some_curve) {
+      Point relativeBarycenter;
 
       if(profile){
         gettimeofday(&start, NULL);
         startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
       }
-    if(centroids.size() > 0){
-      vector<float> beta;
-      Point P1;
-      Point P2;
-      Point absoluteCentroid;
-      float minDist;
-      int dist;
+      if(centroids.size() > 0){
+        vector<float> beta;
+        Point P1;
+        Point P2;
+        Point absoluteCentroid;
+        float minDist;
+        int dist;
 
-      if(barycenters.size() < 1){ //first rectangle  //TODO what if, for example, the first is missing?
+        if(barycenters.size() < 1){ //first rectangle  //TODO what if, for example, the first is missing?
 
-        if(lastOkRectCenters.size() > 0){
+          if(lastOkRectCenters.size() > 0){
+            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+            minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
+            for(int i = 1; i < centroids.size(); i++){
+              absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
+              dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[0]);
+              if(dist < minDist){
+                minDist = dist;
+                barycenter = absoluteCentroid;
+              }
+            }
+          }else{
+            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
+          }
+        }else if(barycenters.size() == 1) {  //second rectangle
+
+          if(lastOkRectCenters.size() > 1){
+            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
+            minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
+            for(int i = 1; i < centroids.size(); i++){
+              absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
+              dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[1]);
+              if(dist < minDist){
+                minDist = dist;
+                barycenter = absoluteCentroid;
+              }
+            }
+          }else{
+            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
+          }
+
+        }else{  //if more than 2 barycenters found
+          if(barycenters.size() > 2){
+            beta = polyFit(barycenters, mat, 2);
+          }else if(barycenters.size() > 1){
+            beta = polyFit(barycenters, mat, 1);
+          }
+          //compute distance between the curve and each centroid -> chose the one closer to the curve
+          float x1 = 0;
+          float x2 = 0;
+          for(int i = 0; i<beta.size(); i++){
+            x1 += beta[i]*pow(bottomLeft.y,i);
+            x2 += beta[i]*pow(topRight.y,i);
+          }
+          P1 = Point(x1, bottomLeft.y);
+          P2 = Point(x2, topRight.y);
+
           barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-          minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
+          minDist = distPointToLine(P1, P2, barycenter);
           for(int i = 1; i < centroids.size(); i++){
             absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
-            dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[0]);
+            dist = distPointToLine(P1, P2, absoluteCentroid);
+            //cout << "DIST " << i+1 << ": " << dist << endl;
             if(dist < minDist){
               minDist = dist;
               barycenter = absoluteCentroid;
             }
           }
-        }else{
-          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
         }
-
-      }else if(barycenters.size() == 1) {  //second rectangle
-
-        if(lastOkRectCenters.size() > 1){
-          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-          minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
-          for(int i = 1; i < centroids.size(); i++){
-            absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
-            dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[1]);
-            if(dist < minDist){
-              minDist = dist;
-              barycenter = absoluteCentroid;
-            }
-          }
-        }else{
-          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
+        if(display){
+          circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
+          //circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
+          //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
+          displayImg("barycenter",mat);
         }
+      }
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Component distance analysis: " << endMillis - startMillis << endl;
+      }
 
-      }else{  //if more than 2 barycenters found
-        if(barycenters.size() > 2){
-          beta = polyFit(barycenters, mat, 2);
-        }else if(barycenters.size() > 1){
-          beta = polyFit(barycenters, mat, 1);
-        }
+      //cout << "BARYCENTER: " << barycenter << endl;
+    }else{// some_curve
+
+
+      if(centroids.size() > 0){
+        Point P1;
+        Point P2;
+        Point absoluteCentroid;
+        float minDist;
+        int dist;
+
         //compute distance between the curve and each centroid -> chose the one closer to the curve
         float x1 = 0;
         float x2 = 0;
@@ -579,21 +611,8 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
           }
         }
       }
-      if(display){
-        circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
-        //circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
-        //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
-        displayImg("barycenter",mat);
-      }
-
     }
-    if(profile){
-        gettimeofday(&end, NULL);
-        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-        cout << "Component distance analysis: " << endMillis - startMillis << endl;
-      }
   }
-  //cout << "BARYCENTER: " << barycenter << endl;
 
   return barycenter;
 }
@@ -806,7 +825,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
           startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
         }
 
-        Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, barycenters);
+        Point bar = computeBarycenter(rect ,wip, lastOkRectCenters, rectCenters, barycenters, some_curve, lastOkFitted, beta);
         if(profile){
             gettimeofday(&end, NULL);
             endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
@@ -825,21 +844,19 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         }
 
         //**** Compute next rectangle center *****
-          if(barycenters.size() > partialFittingOrder){
-            vector<Point> lastNBar = vector<Point>();
-            for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
-              lastNBar.push_back(barycenters[barycenters.size()-1-j]);
-            }
-            nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, partialFittingOrder);
-
-          }else{
-            nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
+        if(barycenters.size() > partialFittingOrder){
+          vector<Point> lastNBar = vector<Point>();
+          for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
+            lastNBar.push_back(barycenters[barycenters.size()-1-j]);
           }
-          rectCenters.push_back(nextCenter);
-          if(display){
-            circle( rectangles, nextCenter, 5, Scalar( 255, 0, 0 ),  10, 3 );
-          }
-
+          nextCenter = nextRectCenter(height - rect_offset - rect_height/2 - (i+1)*rect_height, lastNBar, wip, partialFittingOrder);
+        }else{
+          nextCenter = Point(rectCenters[i].x, height - rect_offset - rect_height/2 - (i+1)*rect_height);
+        }
+        rectCenters.push_back(nextCenter);
+        if(display){
+          circle( rectangles, nextCenter, 5, Scalar( 255, 0, 0 ),  10, 3 );
+        }
         //**** Draw updated rectangle ****
         drawRect(rect, rectColor, height, rectangles);
 
@@ -854,58 +871,10 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
     //**** rectangles from previous frame *****
     rectCenters = lastOkRectCenters;
     for (int i = 0; i < rectCenters.size(); i++) {
+      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
       Point rCenter = Point(lastOkFitted[lastOkRectCenters[i].y].x, lastOkRectCenters[i].y);
       rectCenters[i] = rCenter;
-      vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
-      Point barycenter = Point(-1,-1);
-      Point bottomLeft = rect[0];
-      Point topRight = rect[2];
-
-      if(topRight.x > 0 && bottomLeft.x < wip.cols){
-        //keep the ROI inside the matrix
-        if(bottomLeft.x < 0){
-          bottomLeft.x = 0;
-        }
-        if(topRight.x > wip.cols){
-          topRight.x = wip.cols;
-        }
-        //***** Compute centroids inside the ROI with connected component *****
-        Rect rectROI = Rect(bottomLeft, topRight);
-        Mat ROI = wip(rectROI);
-
-        vector<Point> centroids = laneConnectedComponent(ROI);
-
-        if(centroids.size() > 0){
-          Point P1;
-          Point P2;
-          Point absoluteCentroid;
-          float minDist;
-          int dist;
-
-          //compute distance between the curve and each centroid -> chose the one closer to the curve
-          float x1 = 0;
-          float x2 = 0;
-          for(int i = 0; i<beta.size(); i++){
-            x1 += beta[i]*pow(bottomLeft.y,i);
-            x2 += beta[i]*pow(topRight.y,i);
-          }
-          P1 = Point(x1, bottomLeft.y);
-          P2 = Point(x2, topRight.y);
-
-          barycenter = Point(bottomLeft.x + centroids[0].x, rect[1].y + centroids[0].y);
-          minDist = distPointToLine(P1, P2, barycenter);
-          for(int i = 1; i < centroids.size(); i++){
-            absoluteCentroid = Point(bottomLeft.x + centroids[i].x, rect[1].y + centroids[i].y);
-            dist = distPointToLine(P1, P2, absoluteCentroid);
-            //cout << "DIST " << i+1 << ": " << dist << endl;
-            if(dist < minDist){
-              minDist = dist;
-              barycenter = absoluteCentroid;
-            }
-          }
-        }
-
-      }
+      Point barycenter = computeBarycenter(rect ,wip, lastOkRectCenters, rectCenters, barycenters, some_curve, lastOkFitted, beta);
       if(barycenters.size()>0 && abs(barycenter.y - barycenters[barycenters.size()-1].y) > rect_height*100){
         barycenter.x = -1;
         barycenter.y = -1;
@@ -1328,7 +1297,6 @@ Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   return combined_binary;
 }
 
-
 Point getAbsolutePosition(Point relativePosition, vector<Point> roi, int matWidth){
   Point bottomLeft = roi[0];
   Point topRight = roi[2];
@@ -1432,6 +1400,7 @@ int LanesDetection::detectLanes(Mat src){
     }
 
     //**** Curve Mask *****
+
     Mat leftMat = Mat::zeros(height, width, CV_8U);
     Mat rightMat = Mat::zeros(height, width, CV_8U);
     if(someLeft && someRight){
@@ -1484,7 +1453,8 @@ int LanesDetection::detectLanes(Mat src){
       findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
       findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
     }
-  if(profile){
+
+    if(profile){
       gettimeofday(&end, NULL);
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
       cout << "Curve points computation: " << endMillis - startMillis << endl;
