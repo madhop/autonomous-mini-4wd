@@ -505,38 +505,9 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
         int dist;
 
         if(barycenters.size() < 1){ //first rectangle  //TODO what if, for example, the first is missing?
-
-          if(lastOkRectCenters.size() > 0){
-            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-            minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
-            for(int i = 1; i < centroids.size(); i++){
-              absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
-              dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[0]);
-              if(dist < minDist){
-                minDist = dist;
-                barycenter = absoluteCentroid;
-              }
-            }
-          }else{
-            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
-          }
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
         }else if(barycenters.size() == 1) {  //second rectangle
-
-          if(lastOkRectCenters.size() > 1){
-            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y);
-            minDist = distPointToPoint(centroids[0], lastOkRectCenters[0]);
-            for(int i = 1; i < centroids.size(); i++){
-              absoluteCentroid = Point(bottomLeft.x + centroids[i].x, points[1].y + centroids[i].y);
-              dist = distPointToPoint(absoluteCentroid, lastOkRectCenters[1]);
-              if(dist < minDist){
-                minDist = dist;
-                barycenter = absoluteCentroid;
-              }
-            }
-          }else{
-            barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
-          }
-
+          barycenter = Point(bottomLeft.x + centroids[0].x, points[1].y + centroids[0].y); //TODO non prendere il primo, decidiamo cosa prendere
         }else{  //if more than 2 barycenters found
           if(barycenters.size() > 2){
             beta = polyFit(barycenters, mat, 2);
