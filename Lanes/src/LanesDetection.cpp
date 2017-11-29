@@ -488,15 +488,14 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
     Mat ROI = mat(rectROI);
     vector<Point> centroids = laneConnectedComponent(ROI);
 
+    if(centroids.size() > 0){
+      if (!some_curve) {
+        Point relativeBarycenter;
 
-    if (!some_curve) {
-      Point relativeBarycenter;
-
-      if(profile){
-        gettimeofday(&start, NULL);
-        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-      }
-      if(centroids.size() > 0){
+        if(profile){
+          gettimeofday(&start, NULL);
+          startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+        }
         vector<float> beta;
         Point P1;
         Point P2;
@@ -542,18 +541,14 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
           //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
           displayImg("barycenter",mat);
         }
-      }
-      if(profile){
-        gettimeofday(&end, NULL);
-        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-        cout << "Component distance analysis: " << endMillis - startMillis << endl;
-      }
+        if(profile){
+          gettimeofday(&end, NULL);
+          endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+          cout << "Component distance analysis: " << endMillis - startMillis << endl;
+        }
 
-      //cout << "BARYCENTER: " << barycenter << endl;
-    }else{// some_curve
-
-
-      if(centroids.size() > 0){
+        //cout << "BARYCENTER: " << barycenter << endl;
+      }else{// some_curve
         Point P1;
         Point P2;
         Point absoluteCentroid;
@@ -583,6 +578,7 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
         }
       }
     }
+
   }
 
   return barycenter;
@@ -853,12 +849,13 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       if(barycenter.x!=-1 && barycenter.y!=-1 ){
         barycenters.push_back(barycenter);
         rectCenters[i].x = barycenter.x;
+        if(display){
+          circle( rectangles, barycenter, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
+          //**** Draw updated rectangle ****
+          drawRect(rect, rectColor, height, rectangles);
+        }
       }
-      if(display){
-        circle( rectangles, barycenter, 5, Scalar( 0, 0, 255 ),  3, 3 ); //draw barycenter
-        //**** Draw updated rectangle ****
-        drawRect(rect, rectColor, height, rectangles);
-      }
+
     }
   }
 
@@ -1423,6 +1420,18 @@ int LanesDetection::detectLanes(Mat src){
     }else{
       findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
       findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
+    }
+    cout << "leftBarycenters: " << leftBarycenters << endl;
+    for (int k = 0; k < leftBarycenters.size(); k++) {
+      if (leftBarycenters[k].x == -1 || leftBarycenters[k].y == -1) {
+        waitKey(0);
+      }
+    }
+    cout << "rightBarycenters: " << rightBarycenters << endl;
+    for (int k = 0; k < rightBarycenters.size(); k++) {
+      if (rightBarycenters[k].x == -1 || rightBarycenters[k].y == -1) {
+        waitKey(0);
+      }
     }
 
     if(profile){
