@@ -41,7 +41,7 @@ const int horizon_offset_ratio = 5;
 const int straight_range = 3; //cambiare con ratio
 const int vanishing_point_window = 10;
 const int vanishing_point_window_offset = 1;
-const int fit_order = 2;
+const int fit_order = 3;
 const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
@@ -55,14 +55,6 @@ const Scalar avg_curve_avg = Scalar(0,255,255);
 const Scalar cur_fitted_color = Scalar(0,255,0);
 const Scalar white_filtering_threshold = Scalar(120, 120, 120);
 
-//camera calibration
-const double fx_ratio =  0.4544404367948488;
-const double cx_ratio = 0.5008333333333333;
-const double fy_ratio = 807.894109857508963;
-const double cy_ratio = 0.5014814814814815;
-const double dist_1 = -2.6760855717017523e-01;
-const double dist_2 = 8.9295931009928706e-02;
-const double dist_5 = -1.4378376364459476e-02;
 
 
 
@@ -104,7 +96,7 @@ LanesDetection::LanesDetection(){
     this->profile = profile_param;
     this->display = display_param;
     this->interpolationType = interpolartion_type;
-    //this->camera = Camera_Params(camera_type);
+    this->camera = Camera_Params(camera_type);
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -122,14 +114,6 @@ LanesDetection::LanesDetection(){
     this->leftSimilarSeries = 0;
     this->vanishingPointAvg = Point(0,0);
     this->counter = 0;
-    //camera calibration
-    this->fxRatio = fx_ratio;
-    this->cxRatio = cx_ratio;
-    this->fyRatio = fy_ratio;
-    this->cyRatio = cy_ratio;
-    this->dist1 = dist_1;
-    this->dist2 = dist_2;
-    this->dist5 = dist_5;
 
 
 
@@ -242,27 +226,6 @@ Scalar LanesDetection::getCurFittedColor(){
 }
 Scalar LanesDetection::getWhiteFilteringThreshold(){
   return whiteFilteringThreshold;
-}
-double LanesDetection::getFxRatio(){
-  return fxRatio;
-}
-double LanesDetection::getCxRatio(){
-  return cxRatio;
-}
-double LanesDetection::getFyRatio(){
-  return fyRatio;
-}
-double LanesDetection::getCyRatio(){
-  return cyRatio;
-}
-double LanesDetection::getDist1(){
-  return dist1;
-}
-double LanesDetection::getDist2(){
-  return dist2;
-}
-double LanesDetection::getDist5(){
-  return dist2;
 }
 int LanesDetection::getPartialFittingOrder(){
   return partialFittingOrder;
@@ -386,27 +349,6 @@ void LanesDetection::setCurFittedColor(Scalar curFittedColor){
 void LanesDetection::setWhiteFilteringThreshold(Scalar whiteFilteringThreshold){
   this->whiteFilteringThreshold = whiteFilteringThreshold;
 }
-void LanesDetection::setFxRatio(double fxRatio){
-  this->fxRatio = fxRatio;
-}
-void LanesDetection::setCxRatio(double cxRatio){
-  this->cxRatio = cxRatio;
-}
-void LanesDetection::setFyRatio(double fyRatio){
-  this->fyRatio = fyRatio;
-}
-void LanesDetection::setCyRatio(double cyRatio){
-  this->cyRatio = cyRatio;
-}
-void LanesDetection::setDist1(double dist1){
-  this->dist1 = dist1;
-}
-void LanesDetection::setDist2(double dist2){
-  this->dist2 = dist2;
-}
-void LanesDetection::setDist5(double dist5){
-  this->dist5 = dist5;
-}
 void LanesDetection::setPartialFittingOrder(int partialFittingOrder){
   this->partialFittingOrder = partialFittingOrder;
 }
@@ -492,15 +434,15 @@ Mat LanesDetection::calibrateCamera(Mat in){
   double height = in.size().height;
 
   Mat cameraMatrix = Mat::eye(3, 3, CV_64F);
-  cameraMatrix.at<double>(0,0) = width*fx_ratio;
-  cameraMatrix.at<double>(0,2) = width*cx_ratio;
-  cameraMatrix.at<double>(1,1) = height*fy_ratio;
-  cameraMatrix.at<double>(1,2) = height*cy_ratio;
+  cameraMatrix.at<double>(0,0) = width*camera.getFxRatio();
+  cameraMatrix.at<double>(0,2) = width*camera.getCxRatio();
+  cameraMatrix.at<double>(1,1) = height*camera.getFyRatio();
+  cameraMatrix.at<double>(1,2) = height*camera.getCyRatio();
 
   Mat distCoeffs = Mat::zeros(5, 1, CV_64F);
-  distCoeffs.at<double>(0,0) = dist1;
-  distCoeffs.at<double>(0,1) = dist2;
-  distCoeffs.at<double>(0,4) = dist5;
+  distCoeffs.at<double>(0,0) = camera.getDist1();
+  distCoeffs.at<double>(0,1) = camera.getDist2();
+  distCoeffs.at<double>(0,4) = camera.getDist5();
   undistort(in, out, cameraMatrix, distCoeffs);
   return out;
 }
@@ -964,7 +906,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         }
 
       }
-      if(barycenters.size()>0 && abs(barycenter.y - barycenters[barycenters.size()-1].y) > rect_height*10){
+      if(barycenters.size()>0 && abs(barycenter.y - barycenters[barycenters.size()-1].y) > rect_height*100){
         barycenter.x = -1;
         barycenter.y = -1;
       }
@@ -1386,6 +1328,23 @@ Mat LanesDetection::computeCombinedBinaryThresholding(Mat src){
   return combined_binary;
 }
 
+
+Point getAbsolutePosition(Point relativePosition, vector<Point> roi, int matWidth){
+  Point bottomLeft = roi[0];
+  Point topRight = roi[2];
+
+  if(topRight.x > 0 && bottomLeft.x < matWidth){
+    //keep the ROI inside the matrix
+    if(bottomLeft.x < 0){
+      bottomLeft.x = 0;
+    }
+    if(topRight.x > matWidth){
+      topRight.x = matWidth;
+    }
+  }
+  return Point(bottomLeft.x + relativePosition.x, topRight.y + relativePosition.y);
+}
+
 int LanesDetection::detectLanes(Mat src){
 
   //Profile
@@ -1473,14 +1432,6 @@ int LanesDetection::detectLanes(Mat src){
     }
 
     //**** Curve Mask *****
-    /*if(someRight && someLeft){
-      cout << "faccio la maskera!!!" << endl;
-      int mask_offset = height/maskOffsetRatio;
-      Mat mask = curve_mask(lastOkFittedRight,lastOkFittedLeft,wip,mask_offset);
-      bitwise_and(wip,mask,wip);
-      displayImg("Mask",mask);
-    }*/
-
     Mat leftMat = Mat::zeros(height, width, CV_8U);
     Mat rightMat = Mat::zeros(height, width, CV_8U);
     if(someLeft && someRight){
@@ -1699,6 +1650,7 @@ int LanesDetection::detectLanes(Mat src){
         avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);//avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
       }
       avgCurve = computePoly(avgBeta, height);
+      lastOkAvgCurve = avgCurve;
     }
     if(display){
       polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);

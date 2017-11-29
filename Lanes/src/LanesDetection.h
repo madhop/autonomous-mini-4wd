@@ -74,16 +74,8 @@ using namespace cv;
    vector<Point2f> perspTransfInPoints;
    vector<float> lastOkBetaLeft;
    vector<float> lastOkBetaRight;
+   vector<Point> lastOkAvgCurve;
    int counter;
-   //camera calibration
-   double fxRatio;
-   double cxRatio;
-   double fyRatio;
-   double cyRatio;
-   double dist1;
-   double dist2;
-   double dist5;
-
 
 
  public:
@@ -214,5 +206,6 @@ using namespace cv;
    int computeDirection(float actualPos, float desiredPos);
    Mat computeCombinedBinaryThresholding(Mat src);
    Mat computeBinaryThresholding(Mat src);
+   Point getAbsolutePosition(Point relativePosition, vector<Point> roi, int matWidth);
    int detectLanes(Mat src);
  };

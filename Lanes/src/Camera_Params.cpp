@@ -29,7 +29,7 @@ Camera_Params::Camera_Params(int cameraType){
  }
  this->cameraType = cameraType;
  this->fxRatio = fx_ratio;
- this->cyRatio = cy_ratio;
+ this->cxRatio = cx_ratio;
  this->fyRatio = fy_ratio;
  this->cyRatio = cy_ratio;
  this->dist1 = dist_1;
