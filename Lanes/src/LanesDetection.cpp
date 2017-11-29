@@ -854,7 +854,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
 
 
       //**** Other rectangles ****
-      for(int i=0;i<rectCenters.size();i++){//for(int i=0;i<nRect;i++){
+      for(int i=0;i<nRect-1;i++){//for(int i=0;i<nRect;i++){
         //**** Compute current rectangle ****
         vector<Point> rect = computeRect(rectCenters[i], rect_width, rect_height);
 
@@ -883,7 +883,6 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         }
 
         //**** Compute next rectangle center *****
-        if(i<nRect-1){
           if(barycenters.size() > partialFittingOrder){
             vector<Point> lastNBar = vector<Point>();
             for(int j = 0; (j<nBarycentersWindow && j<barycenters.size()); j++){
@@ -898,7 +897,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
           if(display){
             circle( rectangles, nextCenter, 5, Scalar( 255, 0, 0 ),  10, 3 );
           }
-        }
+
         //**** Draw updated rectangle ****
         drawRect(rect, rectColor, height, rectangles);
 
@@ -965,7 +964,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         }
 
       }
-      if(barycenters.size()>0 && abs(barycenter.y - barycenters[barycenters.size()-1].y) > rect_height*2){
+      if(barycenters.size()>0 && abs(barycenter.y - barycenters[barycenters.size()-1].y) > rect_height*10){
         barycenter.x = -1;
         barycenter.y = -1;
       }
