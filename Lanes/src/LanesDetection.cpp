@@ -46,7 +46,7 @@ const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
 const bool display_param = true;
-const int interpolartion_type = 0; //0: polynomial, 1: b-spline
+const int interpolation_type = 0; //0: polynomial, 1: b-spline
 const int camera_type = 0; //0:GoPro hero 4
 //colors
 const Scalar rect_color = Scalar(0,0,255);
@@ -94,7 +94,7 @@ LanesDetection::LanesDetection(){
     this->partialFittingOrder = partial_fitting_order;
     this->profile = profile_param;
     this->display = display_param;
-    this->interpolationType = interpolartion_type;
+    this->interpolationType = interpolation_type;
     this->camera = Camera_Params(camera_type);
     //colors
     this->rectColor = rect_color;
@@ -633,6 +633,9 @@ int LanesDetection::findHistAcc(Mat mat, int pos, int rect_offset){
   int height = mat.size().height;
   //Compute Histogram
   int histogram[width];
+  for(int i=0; i<width;i++){
+    histogram[i] = 0;
+  }
   for(int i = 0; i<width; i++){
     int sum = 0;
     for(int j = height-(height/10); j < (height-rect_offset); j ++){//for(int j = height/2; j < height; j ++){
@@ -664,11 +667,29 @@ int LanesDetection::findHistAcc(Mat mat, int pos, int rect_offset){
       rightMaxPos = i;
     }
   }
+
+  Mat hist = Mat::zeros(height,width, CV_8UC1);
+  for(int i=0;i<width-1;i++){
+    //hist.at<float>(i, (histogram[i]*height)/max(leftMax,rightMax)) = 255;
+    int x1 = i;
+    int y1 = height - 1- (histogram[i]*(height - 1))/(4*float(max(leftMax,rightMax))/3);
+    int x2 = i+1;
+    int y2 = height - 1- (histogram[i+1]*(height - 1))/(4*float(max(leftMax,rightMax))/3);
+
+    line(hist, Point(x1,y1), Point(x2,y2), 255, 3, 8);
+  }
+
+  displayImg("hist",hist);
+
+
   if(pos == 0){
     return leftMaxPos;
   }else{
     return rightMaxPos;
   }
+
+
+
 }
 
 Mat LanesDetection::curve_mask(vector<Point> curve1, vector<Point> curve2, Mat mat, int offset){
@@ -775,6 +796,7 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
     int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
+    cout << "first x " << firstX << endl;
     if(firstX == -1){  //in caso non trovi il massimo
       firstX = width/4;
     }
@@ -802,7 +824,12 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         //**** Re-compute rectangle ****
         Point nextCenter = Point();
         if(bar.x!=-1 && bar.y!=-1 ){
-          rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+          /*rect = computeRect(Point(bar.x, rectCenters[i].y), rect_width, rect_height);
+          vector<Point> nonzero;
+          findNonZero(wip,nonzero);
+          for(int j = 0; j<nonzero.size();j++){
+            barycenters.push_back(nonzero[j]);
+          }*/
           barycenters.push_back(bar);
           rectCenters[i].x = bar.x;
           if(display){
@@ -847,6 +874,11 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
         barycenter.y = -1;
       }
       if(barycenter.x!=-1 && barycenter.y!=-1 ){
+        /*vector<Point> nonzero;
+        findNonZero(wip,nonzero);
+        for(int j = 0; j<nonzero.size();j++){
+          barycenters.push_back(nonzero[j]);
+        }*/
         barycenters.push_back(barycenter);
         rectCenters[i].x = barycenter.x;
         if(display){
@@ -1421,18 +1453,8 @@ int LanesDetection::detectLanes(Mat src){
       findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
       findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
     }
-    cout << "leftBarycenters: " << leftBarycenters << endl;
-    for (int k = 0; k < leftBarycenters.size(); k++) {
-      if (leftBarycenters[k].x == -1 || leftBarycenters[k].y == -1) {
-        waitKey(0);
-      }
-    }
-    cout << "rightBarycenters: " << rightBarycenters << endl;
-    for (int k = 0; k < rightBarycenters.size(); k++) {
-      if (rightBarycenters[k].x == -1 || rightBarycenters[k].y == -1) {
-        waitKey(0);
-      }
-    }
+
+    
 
     if(profile){
       gettimeofday(&end, NULL);
