@@ -46,6 +46,7 @@ const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
 const bool display_param = true;
+const bool debug_param = true;
 const int interpolation_type = 0; //0: polynomial, 1: b-spline
 const int camera_type = 0; //0:GoPro hero 4
 //colors
@@ -94,6 +95,7 @@ LanesDetection::LanesDetection(){
     this->partialFittingOrder = partial_fitting_order;
     this->profile = profile_param;
     this->display = display_param;
+    this->debug = debug_param;
     this->interpolationType = interpolation_type;
     this->camera = Camera_Params(camera_type);
     //colors
@@ -1454,7 +1456,7 @@ int LanesDetection::detectLanes(Mat src){
       findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
     }
 
-    
+
 
     if(profile){
       gettimeofday(&end, NULL);
@@ -1688,6 +1690,8 @@ int LanesDetection::detectLanes(Mat src){
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
       cout << "Inverse perspective: " << endMillis - startMillis << endl;
     }
+  }else if(debug){
+    cout << "No Curves Found" << endl;
   }
   if(display){
     displayImg("Input",src);

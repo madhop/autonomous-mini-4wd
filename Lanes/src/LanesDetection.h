@@ -47,6 +47,7 @@ using namespace cv;
    int partialFittingOrder;
    bool profile;
    bool display;
+   bool debug;
    int interpolationType;
    Camera_Params camera;
    //colors
@@ -127,6 +128,7 @@ using namespace cv;
    int getPartialFittingOrder();
    bool getProfile();
    bool getDisplay();
+   bool getDebug();
    int getInterpolationType();
    Camera_Params getCamera();
 
@@ -176,6 +178,7 @@ using namespace cv;
    void setPartialFittingOrder(int partialFittingOrder);
    void setProfile(bool profile);
    void setDisplay(bool display);
+   void setDebug(bool debug);
    void setInterpolationType(int interpolationType);
    void setCamera(int cameraType);
 
