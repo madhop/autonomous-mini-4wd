@@ -1719,36 +1719,9 @@ vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
   vector<vector<Point>> lanes = detectLanes(src, homography);
   //place the lanes in a matrix, upon which we apply the homography matrix
   if (lanes.size() > 1) {
-    //vector<Point> row_of_lanes = lanes[0]; Mat lanes_mat = Mat (row_of_lanes).reshape(0,lanes.size());
-    Mat right_lanes_mat = Mat::zeros( src.size().height, 3 , 6 );
-    Mat left_lanes_mat = Mat::zeros( src.size().height, 3 , 6 );  //height*3
-    //place the coordinates of a line in a matrix of 3 column - x,y,z
-    for (int  i = 0; i < right_lanes_mat.size().height; i++) {
-      right_lanes_mat.at<double>(i,0) = lanes[1][i].x;
-      right_lanes_mat.at<double>(i,1) = lanes[1][i].y;
-      right_lanes_mat.at<double>(i,2) = 1;
-      left_lanes_mat.at<double>(i,0) = lanes[0][i].x;
-      left_lanes_mat.at<double>(i,1) = lanes[0][i].y;
-      left_lanes_mat.at<double>(i,2) = 1;
-    }
-
-    Mat inversed_right;
-    Mat inversed_left;
-    transpose(right_lanes_mat,right_lanes_mat); //3*height
-    transpose(left_lanes_mat,left_lanes_mat); //3*height
-    //project the lanes applying the homography matrix
-    inversed_right = homography*right_lanes_mat; //3*height
-    inversed_left = homography*left_lanes_mat; //3*height
-    transpose(inversed_right, inversed_right);  //height*3
-    transpose(inversed_left, inversed_left);  //height*3
-    Mat reversed_left = Mat::zeros( inversed_left.size().height, inversed_left.size().width-1 , inversed_left.type() ); //height*2
-    Mat reversed_right = Mat::zeros( inversed_right.size().height, inversed_right.size().width-1 , inversed_right.type() ); //height*2
-    for (int i = 0; i < reversed_left.size().height; i++) {
-      reversed_left.at<double>(i,0) = inversed_left.at<double>(i,0)/inversed_left.at<double>(i,2);
-      reversed_left.at<double>(i,1) = inversed_left.at<double>(i,1)/inversed_left.at<double>(i,2);
-      reversed_right.at<double>(i,0) = inversed_right.at<double>(i,0)/inversed_right.at<double>(i,2);
-      reversed_right.at<double>(i,1) = inversed_right.at<double>(i,1)/inversed_right.at<double>(i,2);
-    }
+    Mat reversed_right = lanes3D(src.size().height, homography, lanes[1]);
+    Mat reversed_left = lanes3D(src.size().height, homography, lanes[0]);
+    // convert lanes from matrices to vectors
     vector<Point> rightLanesImage;
     vector<Point> leftLanesImage;
     for (int i = 0; i < reversed_right.size().height; i++) {
@@ -1774,5 +1747,41 @@ vector<vector<Point3f>> LanesDetection::detectLanesWorld(Mat src){
   Mat homography;
   vector<vector<Point>> lanes = detectLanes(src, homography);
   vector<vector<Point3f>> lanesWorld;
+  //move reference system
+  if (lanes.size() > 1) {
+    float cmPerPixel = 169.5/float(src.size().height);
+    vector<Point3f> rightLanesWorld;
+    vector<Point3f> leftLanesWorld;
+    for (int i = 0; i < lanes[0].size(); i++) {
+      leftLanesWorld.push_back(Point3f((lanes[0][i].x - (float)(src.size().width/2)) * cmPerPixel, ((float)(src.size().height) - lanes[0][i].y) * cmPerPixel, 0));
+      rightLanesWorld.push_back(Point3f((lanes[1][i].x - (float)(src.size().width/2)) * cmPerPixel, ((float)(src.size().height) - lanes[1][i].y) * cmPerPixel, 0));
+    }
+    lanesWorld.push_back(rightLanesWorld);
+    lanesWorld.push_back(leftLanesWorld);
+  }
   return lanesWorld;
+}
+
+//apply homography
+Mat LanesDetection::lanes3D(int height, Mat homography, vector<Point> lane){
+  //vector<Point> row_of_lanes = lanes[0]; Mat lanes_mat = Mat (row_of_lanes).reshape(0,lanes.size());
+  Mat lanes_mat = Mat::zeros( height, 3 , 6 );
+  //place the coordinates of a line in a matrix of 3 column - x,y,z
+  for (int  i = 0; i < lanes_mat.size().height; i++) {
+    lanes_mat.at<double>(i,0) = lane[i].x;
+    lanes_mat.at<double>(i,1) = lane[i].y;
+    lanes_mat.at<double>(i,2) = 1;
+  }
+
+  Mat inversed;
+  transpose(lanes_mat,lanes_mat); //3*height
+  //project the lanes applying the homography matrix
+  inversed = homography*lanes_mat; //3*height
+  transpose(inversed, inversed);  //height*3
+  Mat reversed = Mat::zeros( inversed.size().height, inversed.size().width-1 , inversed.type() ); //height*2
+  for (int i = 0; i < reversed.size().height; i++) {
+    reversed.at<double>(i,0) = inversed.at<double>(i,0)/inversed.at<double>(i,2);
+    reversed.at<double>(i,1) = inversed.at<double>(i,1)/inversed.at<double>(i,2);
+  }
+  return reversed;
 }

@@ -214,5 +214,7 @@ using namespace cv;
    vector<vector<Point>> detectLanes(Mat src, Mat &homography);
    vector<vector<Point>> detectLanesImage(Mat src);
    vector<vector<Point3f>> detectLanesWorld(Mat src);
+   Mat lanes3D(int height, Mat homography, vector<Point> lane);
+
 
  };
