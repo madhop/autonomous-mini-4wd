@@ -1214,7 +1214,8 @@ Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just
   cvtColor(src,hsv,CV_BGR2HSV);
   float brightness = mean(hsv).val[0];
   cout << "brightness: " << brightness << endl;
-  inRange(wip, 160,255, wip); //Scalar(150, 150, 150)
+  float minRange = 110 + 0.66 * brightness;
+  inRange(wip, minRange,255, wip); //Scalar(150, 150, 150)
   //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
   threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
 
