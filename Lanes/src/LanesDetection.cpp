@@ -1104,6 +1104,8 @@ if(intersectionPoints.size() > 0){
     circle( vanishingPointMap, vanishingPointAvg, 5, Scalar( 255, 0, 0),  4, 4 ); //blue dot
   }
   Point vanishing_point = vanishingPointAvg;
+  //Point vanishing_point = Point(src.size().width/2, 150); //fixed vanishing point
+
   //* Build 2 lines from the vanishing point to the bottom corners *
   float m_left = (float)(height - ((height - vanishing_point.y) - (height - vanishing_point.y)/4) - vanishing_point.y)/(0 - vanishing_point.x); //cout << "m left " << m_left << endl;
   float q_left = vanishing_point.y-m_left*vanishing_point.x;
@@ -1208,8 +1210,11 @@ Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just
   for ( int i = 1; i < blurKernel ; i = i + 2 ){
     GaussianBlur( wip, wip, Size( i, i ), 0, 0, BORDER_DEFAULT );
   }
-
-  inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
+  Mat hsv;
+  cvtColor(src,hsv,CV_BGR2HSV);
+  float brightness = mean(hsv).val[0];
+  cout << "brightness: " << brightness << endl;
+  inRange(wip, 160,255, wip); //Scalar(150, 150, 150)
   //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
   threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
 
@@ -1395,6 +1400,8 @@ int LanesDetection::detectLanes(Mat src){
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
     wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
+    //src = perspectiveTransform(src, perspTransfInPoints, perspTransfOutPoints);
+    displayImg("persp",src);
     if(profile){
       gettimeofday(&end, NULL);
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
@@ -1693,11 +1700,6 @@ int LanesDetection::detectLanes(Mat src){
   }else if(debug){
     cout << "No Curves Found" << endl;
   }
-  if(display){
-    displayImg("Input",src);
-  }
-
-
 
   counter++;
 
@@ -1706,6 +1708,31 @@ int LanesDetection::detectLanes(Mat src){
     tot_endMillis  = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);
     cout << "Tot: " << tot_endMillis - tot_startMillis << endl;
   }
+
+  Point whitePt = Point(590,500 - 44);
+  Point yellowPt = Point(520,605 - 44);
+  Point purplePt = Point(638,700 - 44);
+  Point bluePt = Point(690,540 - 44);
+  circle( src, whitePt, 5, Scalar( 255, 255, 255), 3, 3 ); //white
+  circle( src, yellowPt, 5, Scalar( 0, 255, 255), 3, 3 ); //yellow
+  circle( src, purplePt, 5, Scalar( 255, 0, 255), 3, 3 ); //purple
+  circle( src, bluePt, 5, Scalar( 255, 255, 0), 3, 3 ); //blue
+
+  float cmPerPixel = 169.5/float(src.size().height);
+
+  /*
+  if(debug){
+    cout << "1 pixel is " <<  cmPerPixel << " cm" << endl;
+    cout << "Yellow: " << (float(yellowPt.x) - float(src.size().width)/2)*cmPerPixel << ", " << (-float(yellowPt.y) + float(src.size().height))*cmPerPixel << endl;
+    cout << "Blue: " << (float(bluePt.x) - float(src.size().width)/2)*cmPerPixel << ", " << (-float(bluePt.y) + float(src.size().height))*cmPerPixel << endl;
+    cout << "White: " << (float(whitePt.x) - float(src.size().width)/2)*cmPerPixel << ", " << (-float(whitePt.y) + float(src.size().height))*cmPerPixel << endl;
+    cout << "Purple: " << (float(purplePt.x) - float(src.size().width)/2)*cmPerPixel << ", " << (-float(purplePt.y) + float(src.size().height))*cmPerPixel << endl;
+  }
+
+  if(display){
+    displayImg("Input",src);
+  }*/
+
 
   return turn;
 
