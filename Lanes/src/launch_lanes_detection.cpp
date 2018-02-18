@@ -52,7 +52,9 @@ for(;;){
   gettimeofday(&start, NULL);
   startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
   */
-  int turn = lanesDetection.detectLanes(src);
+  //vector<vector<Point>> lanes = lanesDetection.detectLanes(src);
+  vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
+  cout << "How many lanes? " << lanes.size() << endl;
   /*
   cout << "turn: " << turn << endl;
   gettimeofday(&end, NULL);

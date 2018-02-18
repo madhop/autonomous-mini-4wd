@@ -387,7 +387,7 @@ void LanesDetection::displayImg(const char* window_name,Mat mat){
   imshow( window_name, mat );
 }
 
-Mat LanesDetection::perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints){
+Mat LanesDetection::perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints, Mat &lambda){
   //Perspective Transform
   int width = mat.size().width;
   int height = mat.size().height;
@@ -410,7 +410,7 @@ Mat LanesDetection::perspectiveTransform(Mat mat, vector<Point2f> perspTransfInP
   outPoints[3] = perspTransfOutPoints[3];
 
   // Set the lambda matrix the same type and size as input
-  Mat lambda = Mat::zeros( height, width , mat.type() );
+  //Mat lambda = Mat::zeros( height, width , mat.type() );
 
   // Get the Perspective Transform Matrix i.e. lambda
   lambda = getPerspectiveTransform( inPoints, outPoints );
@@ -1216,6 +1216,7 @@ Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just
   cout << "brightness: " << brightness << endl;
   float minRange = 110 + 0.66 * brightness;
   inRange(wip, minRange,255, wip); //Scalar(150, 150, 150)
+  //inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
   //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);
   threshold(wip,wip,0,255,THRESH_BINARY | THRESH_OTSU);
 
@@ -1321,7 +1322,8 @@ Point getAbsolutePosition(Point relativePosition, vector<Point> roi, int matWidt
   return Point(bottomLeft.x + relativePosition.x, topRight.y + relativePosition.y);
 }
 
-int LanesDetection::detectLanes(Mat src){
+vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
+  vector<vector<Point>> lanes = vector<vector<Point>>();
 
   //Profile
   if(profile){
@@ -1400,9 +1402,10 @@ int LanesDetection::detectLanes(Mat src){
       gettimeofday(&start, NULL);
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
-    wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints);
+    Mat lambda;
+    wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints, lambda);
     //src = perspectiveTransform(src, perspTransfInPoints, perspTransfOutPoints);
-    displayImg("persp",src);
+    //displayImg("persp",src);
     if(profile){
       gettimeofday(&end, NULL);
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
@@ -1576,7 +1579,9 @@ int LanesDetection::detectLanes(Mat src){
 
 
 
-        //**** Classify Curves ****
+
+
+    //**** Classify Curves ****
     /*
     if(profile){
       gettimeofday(&start, NULL);
@@ -1616,10 +1621,6 @@ int LanesDetection::detectLanes(Mat src){
       polylines( rectangles, fittedRight, 0, curFittedColor, 8, 0);
     }
 
-
-
-
-
     //**** Find average curve *****
     if(profile){
       gettimeofday(&start, NULL);
@@ -1638,38 +1639,6 @@ int LanesDetection::detectLanes(Mat src){
       polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
     }
 
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Middle curve computation: " << endMillis - startMillis << endl;
-    }
-
-    //**** Find direction ****
-    float dir = 0;
-    float u = 0;
-    float p = 0.9;
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    for(int i=0; i<avgCurve.size(); i++){
-      //dir+=avgCurve[i].x;
-      u = p*u + (1-p);
-      dir+=u*avgCurve[i].x;
-    }
-    dir/=avgCurve.size();
-    if(display){
-      circle( rectangles, Point(dir,height), 5, Scalar( 0, 255, 0 ),  3, 3 );
-      circle( rectangles, Point(width/2,height), 5, Scalar( 0, 100, 255 ),  3, 3 );
-    }
-
-    turn = computeDirection(dir, width/2);
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Direction computation: " << endMillis - startMillis << endl;
-    }
-
     //***** Display Images ******
     if(display){
       displayImg("Rectangles",rectangles);
@@ -1684,7 +1653,8 @@ int LanesDetection::detectLanes(Mat src){
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
     rect_persp = rectangles.clone();
-    perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints);
+    perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints, lambda);
+    homography = lambda;
     Mat out;
     addWeighted( src, 1, rect_persp, 1, 0.0, out);
 
@@ -1698,6 +1668,10 @@ int LanesDetection::detectLanes(Mat src){
       endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
       cout << "Inverse perspective: " << endMillis - startMillis << endl;
     }
+
+    //push lanes in the vector of lanes that the function will return
+    lanes.push_back(fittedLeft);
+    lanes.push_back(fittedRight);
   }else if(debug){
     cout << "No Curves Found" << endl;
   }
@@ -1710,7 +1684,7 @@ int LanesDetection::detectLanes(Mat src){
     cout << "Tot: " << tot_endMillis - tot_startMillis << endl;
   }
 
-  Point whitePt = Point(590,500 - 44);
+  /*Point whitePt = Point(590,500 - 44);
   Point yellowPt = Point(520,605 - 44);
   Point purplePt = Point(638,700 - 44);
   Point bluePt = Point(690,540 - 44);
@@ -1721,7 +1695,7 @@ int LanesDetection::detectLanes(Mat src){
 
   float cmPerPixel = 169.5/float(src.size().height);
 
-  /*
+
   if(debug){
     cout << "1 pixel is " <<  cmPerPixel << " cm" << endl;
     cout << "Yellow: " << (float(yellowPt.x) - float(src.size().width)/2)*cmPerPixel << ", " << (-float(yellowPt.y) + float(src.size().height))*cmPerPixel << endl;
@@ -1734,7 +1708,71 @@ int LanesDetection::detectLanes(Mat src){
     displayImg("Input",src);
   }*/
 
+  return lanes;
 
-  return turn;
+}
 
+// return the lanes in image coordinates
+vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
+  Mat homography;
+  vector<vector<Point>> lanesImage;
+  vector<vector<Point>> lanes = detectLanes(src, homography);
+  //place the lanes in a matrix, upon which we apply the homography matrix
+  if (lanes.size() > 1) {
+    //vector<Point> row_of_lanes = lanes[0]; Mat lanes_mat = Mat (row_of_lanes).reshape(0,lanes.size());
+    Mat right_lanes_mat = Mat::zeros( src.size().height, 3 , 6 );
+    Mat left_lanes_mat = Mat::zeros( src.size().height, 3 , 6 );  //height*3
+    //place the coordinates of a line in a matrix of 3 column - x,y,z
+    for (int  i = 0; i < right_lanes_mat.size().height; i++) {
+      right_lanes_mat.at<double>(i,0) = lanes[1][i].x;
+      right_lanes_mat.at<double>(i,1) = lanes[1][i].y;
+      right_lanes_mat.at<double>(i,2) = 1;
+      left_lanes_mat.at<double>(i,0) = lanes[0][i].x;
+      left_lanes_mat.at<double>(i,1) = lanes[0][i].y;
+      left_lanes_mat.at<double>(i,2) = 1;
+    }
+
+    Mat inversed_right;
+    Mat inversed_left;
+    transpose(right_lanes_mat,right_lanes_mat); //3*height
+    transpose(left_lanes_mat,left_lanes_mat); //3*height
+    //project the lanes applying the homography matrix
+    inversed_right = homography*right_lanes_mat; //3*height
+    inversed_left = homography*left_lanes_mat; //3*height
+    transpose(inversed_right, inversed_right);  //height*3
+    transpose(inversed_left, inversed_left);  //height*3
+    Mat reversed_left = Mat::zeros( inversed_left.size().height, inversed_left.size().width-1 , inversed_left.type() ); //height*2
+    Mat reversed_right = Mat::zeros( inversed_right.size().height, inversed_right.size().width-1 , inversed_right.type() ); //height*2
+    for (int i = 0; i < reversed_left.size().height; i++) {
+      reversed_left.at<double>(i,0) = inversed_left.at<double>(i,0)/inversed_left.at<double>(i,2);
+      reversed_left.at<double>(i,1) = inversed_left.at<double>(i,1)/inversed_left.at<double>(i,2);
+      reversed_right.at<double>(i,0) = inversed_right.at<double>(i,0)/inversed_right.at<double>(i,2);
+      reversed_right.at<double>(i,1) = inversed_right.at<double>(i,1)/inversed_right.at<double>(i,2);
+    }
+    vector<Point> rightLanesImage;
+    vector<Point> leftLanesImage;
+    for (int i = 0; i < reversed_right.size().height; i++) {
+      rightLanesImage.push_back(Point(reversed_right.at<double>(i,0), reversed_right.at<double>(i,1)));
+      leftLanesImage.push_back(Point(reversed_left.at<double>(i,0), reversed_left.at<double>(i,1)));
+    }
+    lanesImage.push_back(rightLanesImage);
+    lanesImage.push_back(leftLanesImage);
+    Mat out = Mat::zeros( src.size().height, src.size().width , src.type() );
+    // draw
+    if(display){
+      for (int i = 0; i < lanesImage.size(); i++) {
+        polylines( out, lanesImage[i], 0, lastOkFittedColor, 8, 0);
+      }
+      displayImg("vector of lanes", out);
+    }
+  }
+  return lanesImage;
+}
+
+// return the lanes in world coordinates
+vector<vector<Point3f>> LanesDetection::detectLanesWorld(Mat src){
+  Mat homography;
+  vector<vector<Point>> lanes = detectLanes(src, homography);
+  vector<vector<Point3f>> lanesWorld;
+  return lanesWorld;
 }

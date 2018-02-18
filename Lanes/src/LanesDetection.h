@@ -188,7 +188,7 @@ using namespace cv;
    vector<Point> computeRect(Point center, int rect_width,int rect_height);
    void drawRect(vector<Point> rect_points, Scalar rect_color, int thickness, Mat rectangles);
    void displayImg(const char* window_name,Mat mat);
-   Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints);
+   Mat perspectiveTransform(Mat mat, vector<Point2f> perspTransfInPoints, vector<Point2f> perspTransfOutPoints, Mat &lambda);
    float movingAverage(float avg, float new_sample);
    Mat calibrateCamera(Mat in);
    vector<Point> laneConnectedComponent(Mat mat);
@@ -211,5 +211,8 @@ using namespace cv;
    Mat computeCombinedBinaryThresholding(Mat src);
    Mat computeBinaryThresholding(Mat src);
    Point getAbsolutePosition(Point relativePosition, vector<Point> roi, int matWidth);
-   int detectLanes(Mat src);
+   vector<vector<Point>> detectLanes(Mat src, Mat &homography);
+   vector<vector<Point>> detectLanesImage(Mat src);
+   vector<vector<Point3f>> detectLanesWorld(Mat src);
+
  };
