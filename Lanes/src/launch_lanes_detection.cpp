@@ -54,7 +54,13 @@ for(;;){
   */
   //vector<vector<Point>> lanes = lanesDetection.detectLanes(src);
   //vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
-  vector<vector<Point3f>> lanes = lanesDetection.detectLanesWorld(src);
+  lanesDetection.setRectWidthRatio(23);
+  lanesDetection.setMaskOffsetRatio(9);
+  lanesDetection.setRectOffsetRatio(20);
+  lanesDetection.setPerspAnchorOffsetRatio(1);
+  lanesDetection.setOrder(2);
+  vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
+  //vector<vector<Point3f>> lanes = lanesDetection.detectLanesWorld(src);
   cout << "How many lanes? " << lanes.size() << endl;
   /*
   cout << "turn: " << turn << endl;
@@ -68,8 +74,6 @@ for(;;){
 
   //* Kill frame *
   waitKey(0);
-
-
 }
 gettimeofday(&tot_end, NULL);
 tot_endMillis = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);

@@ -52,6 +52,7 @@ using namespace cv;
    Camera_Params camera;
    float brightnessModelB0;
    float brightnessModelB1;
+   float perspAnchorOffsetRatio;
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;
@@ -135,6 +136,7 @@ using namespace cv;
    Camera_Params getCamera();
    float getBrightnessModelB0();
    float getBrightnessModelB1();
+   float getPerspAnchorOffsetRatio();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -187,6 +189,7 @@ using namespace cv;
    void setCamera(int cameraType);
    void setBrightnessModelB0(float brightnessModelB0);
    void setBrightnessModelB1(float brightnessModelB1);
+   void setPerspAnchorOffsetRatio(float perspAnchorOffsetRatio);
 
    //Constructor
    LanesDetection();
