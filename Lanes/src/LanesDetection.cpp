@@ -17,8 +17,8 @@ const int canny_high_threshold_ratio = 3;
 const int canny_kernel = 3;
 const int blur_kernel = 5;
 const int mask_offset_ratio = 10;
-const int rect_width_ratio = 9;
-const int rect_offset_ratio = 200;
+const int rect_width_ratio = 20;
+const int rect_offset_ratio = 20;
 const int n_rect = 20;
 const int rect_thickness_ratio = 200;
 const int tot_min_weight = 10;
@@ -41,7 +41,7 @@ const int horizon_offset_ratio = 5;
 const int straight_range = 3; //cambiare con ratio
 const int vanishing_point_window = 10;
 const int vanishing_point_window_offset = 1;
-const int fit_order = 3;
+const int fit_order = 2;
 const int n_barycenters_window = 3;
 const int partial_fitting_order = 1;
 const bool profile_param = false;
@@ -49,6 +49,8 @@ const bool display_param = true;
 const bool debug_param = true;
 const int interpolation_type = 0; //0: polynomial, 1: b-spline
 const int camera_type = 0; //0:GoPro hero 4
+const float brightness_model_B0 = 130;
+const float brightness_model_B1 = 0.66;
 //colors
 const Scalar rect_color = Scalar(0,0,255);
 const Scalar last_ok_fitted_color = Scalar(255,0,0);
@@ -98,6 +100,8 @@ LanesDetection::LanesDetection(){
     this->debug = debug_param;
     this->interpolationType = interpolation_type;
     this->camera = Camera_Params(camera_type);
+    this->brightnessModelB0 = brightness_model_B0;
+    this->brightnessModelB1 = brightness_model_B1;
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -240,6 +244,12 @@ int LanesDetection::getInterpolationType(){
 Camera_Params LanesDetection::getCamera(){
   return camera;
 }
+float LanesDetection::getBrightnessModelB0(){
+  return brightnessModelB0;
+}
+float LanesDetection::getBrightnessModelB1(){
+  return brightnessModelB1;
+}
 
 
 void LanesDetection::setCannyLowThreshold(int cannyLowThreshold){
@@ -361,6 +371,12 @@ void LanesDetection::setInterpolationType(int interpolationType){
 }
 void LanesDetection::setCamera(int cameraType){
   this->camera = Camera_Params(cameraType);
+}
+void LanesDetection::setBrightnessModelB0(float brightnessModelB0){
+  this->brightnessModelB0 = brightnessModelB0;
+}
+void LanesDetection::setBrightnessModelB1(float brightnessModelB1){
+  this->brightnessModelB1 = brightnessModelB1;
 }
 
 
@@ -1214,7 +1230,7 @@ Mat LanesDetection::computeBinaryThresholding(Mat src){ //thresholding with just
   cvtColor(src,hsv,CV_BGR2HSV);
   float brightness = mean(hsv).val[0];
   cout << "brightness: " << brightness << endl;
-  float minRange = 110 + 0.66 * brightness;
+  float minRange = brightnessModelB0 + brightnessModelB1 * brightness;//float minRange = 110 + 0.66 * brightness;
   inRange(wip, minRange,255, wip); //Scalar(150, 150, 150)
   //inRange(wip, 120,255, wip); //Scalar(150, 150, 150)
   //adaptiveThreshold(wip,wip,255,ADAPTIVE_THRESH_GAUSSIAN_C,THRESH_BINARY,55,-20);

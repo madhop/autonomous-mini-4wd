@@ -50,6 +50,8 @@ using namespace cv;
    bool debug;
    int interpolationType;
    Camera_Params camera;
+   float brightnessModelB0;
+   float brightnessModelB1;
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;
@@ -131,6 +133,8 @@ using namespace cv;
    bool getDebug();
    int getInterpolationType();
    Camera_Params getCamera();
+   float getBrightnessModelB0();
+   float getBrightnessModelB1();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -181,6 +185,8 @@ using namespace cv;
    void setDebug(bool debug);
    void setInterpolationType(int interpolationType);
    void setCamera(int cameraType);
+   void setBrightnessModelB0(float brightnessModelB0);
+   void setBrightnessModelB1(float brightnessModelB1);
 
    //Constructor
    LanesDetection();
