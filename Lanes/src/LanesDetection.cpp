@@ -1412,287 +1412,289 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
     cout << "Vanishing point: " << endMillis - startMillis << endl;
   }
 
+  if (counter >= vanishingPointWindow+vanishingPointWindowOffset) {
+    // fixed vanishing point
+    //perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
+    vector<Point2f> test_Points;
+    //test_Points = findPerspectiveInPoints(src, vanishingPointAvg);
+    if(perspTransfInPoints.size()>0){ //If vanishing point has been found
 
+      //*** Perspective Transform ***
+      perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( 0,height));
+      perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( 0, 0));
+      perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( width, 0));
+      perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( width, height));
 
-  // fixed vanishing point
-  //perspTransfInPoints = findPerspectiveInPoints(src, vanishingPointAvg);
-  vector<Point2f> test_Points;
-  //test_Points = findPerspectiveInPoints(src, vanishingPointAvg);
-  if(perspTransfInPoints.size()>0){ //If vanishing point has been found
-
-    //*** Perspective Transform ***
-    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( 0,height));
-    perspTransfOutPoints.push_back(Point2f( (width/2)-(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( 0, 0));
-    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)-(height/5) ));  // perspTransfOutPoints.push_back(Point2f( width, 0));
-    perspTransfOutPoints.push_back(Point2f( (width/2)+(width/3), (height/2)+(height/2) ));  // perspTransfOutPoints.push_back(Point2f( width, height));
-
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    Mat lambda;
-    wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints, lambda);
-    //src = perspectiveTransform(src, perspTransfInPoints, perspTransfOutPoints);
-    //displayImg("persp",src);
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Perspective transform: " << endMillis - startMillis << endl;
-    }
-
-    //**** Curve Mask *****
-
-    Mat leftMat = Mat::zeros(height, width, CV_8U);
-    Mat rightMat = Mat::zeros(height, width, CV_8U);
-    if(someLeft && someRight){
-        Mat leftMask = Mat::zeros(height, width, CV_8U);
-        polylines( leftMask, lastOkFittedLeft, 0, 255, mask_offset, 0);
-        wip.copyTo(leftMat,leftMask);
-        Mat rightMask = Mat::zeros(height, width, CV_8U);
-        polylines( rightMask, lastOkFittedRight, 0, 255, mask_offset, 0);
-        wip.copyTo(rightMat,rightMask);
-
-    }
-
-    //*** Binary thresholding ***
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    if(someLeft && someRight){
-      leftMat = computeBinaryThresholding(leftMat);
-      rightMat = computeBinaryThresholding(rightMat);
-    }
-    displayImg("left", leftMat);
-    displayImg("right", rightMat);
-    wip = computeBinaryThresholding(wip);
-
-
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Binary thresholding: " << endMillis - startMillis << endl;
-    }
-
-    //***** Find curve points ******
-    Mat rect_persp;
-    Mat rectangles = wip.clone();
-    cvtColor( rectangles, rectangles, CV_GRAY2BGR );
-    vector<Point> leftRectCenters; //filled by function findCurvePoints
-    vector<Point> rightRectCenters;
-    vector<Point> leftBarycenters;
-    vector<Point> rightBarycenters;
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    if(someLeft && someRight){
-      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, leftMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
-      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, rightMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
-
-    }else{
-      findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
-      findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
-    }
-
-
-
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Curve points computation: " << endMillis - startMillis << endl;
-    }
-
-
-    //**** Fit curves *****
-    vector<Point> fittedRight;
-    vector<Point> fittedLeft;
-    vector<float> leftBeta;
-    vector<float> rightBeta;
-
-    if(interpolationType == 0){
-      //* Least squares nth-nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
-      leftBeta = polyFit(leftBarycenters,wip, order);
       if(profile){
         gettimeofday(&start, NULL);
         startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
       }
-      if(leftBeta.size() > 0){
-        fittedLeft = computePoly(leftBeta, height);
-        lastOkBetaLeft = leftBeta;
-      }
-      rightBeta = polyFit(rightBarycenters,wip, order);
-      if(rightBeta.size() > 0){
-        fittedRight = computePoly(rightBeta, height);
-        lastOkBetaRight = rightBeta;
-      }
+      Mat lambda;
+      wip = perspectiveTransform(wip, perspTransfInPoints, perspTransfOutPoints, lambda);
+      //src = perspectiveTransform(src, perspTransfInPoints, perspTransfOutPoints);
+      //displayImg("persp",src);
       if(profile){
         gettimeofday(&end, NULL);
         endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-        cout << "Curve fitting: " << endMillis - startMillis << endl;
+        cout << "Perspective transform: " << endMillis - startMillis << endl;
       }
-    }
-    else if(interpolationType == 1){
-      //**** B-spline *******
-      if(leftBarycenters.size() > 3){
-        tinyspline::BSpline leftSpline(
-          3, // ... of degree 3...
-          2, // ... in 2D...
-          leftBarycenters.size(), // ... consisting of 7 control points...
-          TS_CLAMPED // ... using a clamped knot vector.
-        );
 
-        // Setup control points.
-        std::vector<tinyspline::real> leftCtrlp = leftSpline.ctrlp();
-        for(int i=0;i<leftBarycenters.size();i++){
-          leftCtrlp[i*2] = leftBarycenters[i].x;
-          leftCtrlp[i*2+1] = leftBarycenters[i].y;
+      //**** Curve Mask *****
 
-        }
-        leftSpline.setCtrlp(leftCtrlp);
+      Mat leftMat = Mat::zeros(height, width, CV_8U);
+      Mat rightMat = Mat::zeros(height, width, CV_8U);
+      if(someLeft && someRight){
+          Mat leftMask = Mat::zeros(height, width, CV_8U);
+          polylines( leftMask, lastOkFittedLeft, 0, 255, mask_offset, 0);
+          wip.copyTo(leftMat,leftMask);
+          Mat rightMask = Mat::zeros(height, width, CV_8U);
+          polylines( rightMask, lastOkFittedRight, 0, 255, mask_offset, 0);
+          wip.copyTo(rightMat,rightMask);
 
-
-
-        // Evaluate `spline` at u = 0.4 using 'evaluate'.
-        for(int i=0;i<height;i++){
-          // Stores our evaluation results.
-          float eval = (float) i/(float) height;
-          std::vector<tinyspline::real> result = leftSpline.evaluate(eval).result();
-          fittedLeft.push_back(Point(result[0],result[1]));
-        }
       }
-      else{
-        leftBeta = polyFit(leftBarycenters,wip,1);
+
+      //*** Binary thresholding ***
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      if(someLeft && someRight){
+        leftMat = computeBinaryThresholding(leftMat);
+        rightMat = computeBinaryThresholding(rightMat);
+      }
+      displayImg("left", leftMat);
+      displayImg("right", rightMat);
+      wip = computeBinaryThresholding(wip);
+
+
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Binary thresholding: " << endMillis - startMillis << endl;
+      }
+
+      //***** Find curve points ******
+      Mat rect_persp;
+      Mat rectangles = wip.clone();
+      cvtColor( rectangles, rectangles, CV_GRAY2BGR );
+      vector<Point> leftRectCenters; //filled by function findCurvePoints
+      vector<Point> rightRectCenters;
+      vector<Point> leftBarycenters;
+      vector<Point> rightBarycenters;
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      if(someLeft && someRight){
+        findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, leftMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
+        findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, rightMat, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
+
+      }else{
+        findCurvePoints(someLeft, leftRectCenters, leftBarycenters, 0, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkLeftRectCenters, lastOkBetaLeft, mask_offset, lastOkFittedLeft);
+        findCurvePoints(someRight, rightRectCenters, rightBarycenters, 1, wip, width, height, rect_offset, rect_height, rect_width, rectangles, lastOkRightRectCenters, lastOkBetaRight, mask_offset, lastOkFittedRight);
+      }
+
+
+
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Curve points computation: " << endMillis - startMillis << endl;
+      }
+
+
+      //**** Fit curves *****
+      vector<Point> fittedRight;
+      vector<Point> fittedLeft;
+      vector<float> leftBeta;
+      vector<float> rightBeta;
+
+      if(interpolationType == 0){
+        //* Least squares nth-nd order polynomial fitting    x = beta_2*y^2 + beta_1*y + beta_0 *
+        leftBeta = polyFit(leftBarycenters,wip, order);
+        if(profile){
+          gettimeofday(&start, NULL);
+          startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+        }
         if(leftBeta.size() > 0){
           fittedLeft = computePoly(leftBeta, height);
+          lastOkBetaLeft = leftBeta;
         }
-      }
-
-      if(rightBarycenters.size()>3){
-        tinyspline::BSpline rightSpline(
-          3, // ... of degree 3...
-          2, // ... in 2D...
-          rightBarycenters.size(), // ... consisting of 7 control points...
-          TS_CLAMPED // ... using a clamped knot vector.
-        );
-
-        // Setup control points.
-        std::vector<tinyspline::real> rightCtrlp = rightSpline.ctrlp();
-        for(int i=0;i<rightBarycenters.size();i++){
-          rightCtrlp[i*2] = rightBarycenters[i].x;
-          rightCtrlp[i*2+1] = rightBarycenters[i].y;
-        }
-        rightSpline.setCtrlp(rightCtrlp);
-
-        // Evaluate `spline` at u = 0.4 using 'evaluate'.
-        for(int i=0;i<height;i++){
-          std::vector<tinyspline::real> result = rightSpline.evaluate((float) i/(float) height).result();
-          fittedRight.push_back(Point(result[0], result[1]));
-        }
-      }
-      else{
         rightBeta = polyFit(rightBarycenters,wip, order);
         if(rightBeta.size() > 0){
           fittedRight = computePoly(rightBeta, height);
+          lastOkBetaRight = rightBeta;
+        }
+        if(profile){
+          gettimeofday(&end, NULL);
+          endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+          cout << "Curve fitting: " << endMillis - startMillis << endl;
         }
       }
-    }
+      else if(interpolationType == 1){
+        //**** B-spline *******
+        if(leftBarycenters.size() > 3){
+          tinyspline::BSpline leftSpline(
+            3, // ... of degree 3...
+            2, // ... in 2D...
+            leftBarycenters.size(), // ... consisting of 7 control points...
+            TS_CLAMPED // ... using a clamped knot vector.
+          );
 
-    //**** Classify Curves ****
-    /*
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
-    classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Curve classification: " << endMillis - startMillis << endl;
-    }*/
-    if(fittedLeft.size()>0){
-      someLeft = true;
-    }else{
-      someLeft = false;
-    }
-    if(fittedRight.size()>0){
-      someRight = true;
-    }else{
-      someRight = false;
-    }
+          // Setup control points.
+          std::vector<tinyspline::real> leftCtrlp = leftSpline.ctrlp();
+          for(int i=0;i<leftBarycenters.size();i++){
+            leftCtrlp[i*2] = leftBarycenters[i].x;
+            leftCtrlp[i*2+1] = leftBarycenters[i].y;
 
-    //****Update curves *****
-    if(someLeft){
-      lastOkFittedLeft = fittedLeft;
-    }
-    if(someRight){
-      lastOkFittedRight = fittedRight;
-    }
+          }
+          leftSpline.setCtrlp(leftCtrlp);
 
-    //*** Draw curves ****
-    if(display){
-      polylines( rectangles, lastOkFittedRight, 0, lastOkFittedColor, 8, 0);
-      polylines( rectangles, lastOkFittedLeft, 0, lastOkFittedColor, 8, 0);
-      polylines( rectangles, fittedLeft, 0, curFittedColor, 8, 0);
-      polylines( rectangles, fittedRight, 0, curFittedColor, 8, 0);
-    }
 
-    //**** Find average curve *****
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    vector<float> avgBeta = vector<float>();
-    vector<Point> avgCurve;
-    if(leftBeta.size() > 0 && rightBeta.size() > 0){//someRight && someLeft){
-      for(int i=0; i<leftBeta.size(); i++){
-        avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);//avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
+
+          // Evaluate `spline` at u = 0.4 using 'evaluate'.
+          for(int i=0;i<height;i++){
+            // Stores our evaluation results.
+            float eval = (float) i/(float) height;
+            std::vector<tinyspline::real> result = leftSpline.evaluate(eval).result();
+            fittedLeft.push_back(Point(result[0],result[1]));
+          }
+        }
+        else{
+          leftBeta = polyFit(leftBarycenters,wip,1);
+          if(leftBeta.size() > 0){
+            fittedLeft = computePoly(leftBeta, height);
+          }
+        }
+
+        if(rightBarycenters.size()>3){
+          tinyspline::BSpline rightSpline(
+            3, // ... of degree 3...
+            2, // ... in 2D...
+            rightBarycenters.size(), // ... consisting of 7 control points...
+            TS_CLAMPED // ... using a clamped knot vector.
+          );
+
+          // Setup control points.
+          std::vector<tinyspline::real> rightCtrlp = rightSpline.ctrlp();
+          for(int i=0;i<rightBarycenters.size();i++){
+            rightCtrlp[i*2] = rightBarycenters[i].x;
+            rightCtrlp[i*2+1] = rightBarycenters[i].y;
+          }
+          rightSpline.setCtrlp(rightCtrlp);
+
+          // Evaluate `spline` at u = 0.4 using 'evaluate'.
+          for(int i=0;i<height;i++){
+            std::vector<tinyspline::real> result = rightSpline.evaluate((float) i/(float) height).result();
+            fittedRight.push_back(Point(result[0], result[1]));
+          }
+        }
+        else{
+          rightBeta = polyFit(rightBarycenters,wip, order);
+          if(rightBeta.size() > 0){
+            fittedRight = computePoly(rightBeta, height);
+          }
+        }
       }
-      avgCurve = computePoly(avgBeta, height);
-      lastOkAvgCurve = avgCurve;
+
+      //**** Classify Curves ****
+      /*
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      classifyCurve(someLeft, leftBadSeries, leftOkSeries, leftBarycenters);
+      classifyCurve(someRight, rightBadSeries, rightOkSeries, rightBarycenters);
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Curve classification: " << endMillis - startMillis << endl;
+      }*/
+      if(fittedLeft.size()>0){
+        someLeft = true;
+      }else{
+        someLeft = false;
+      }
+      if(fittedRight.size()>0){
+        someRight = true;
+      }else{
+        someRight = false;
+      }
+
+      //****Update curves *****
+      if(someLeft){
+        lastOkFittedLeft = fittedLeft;
+      }
+      if(someRight){
+        lastOkFittedRight = fittedRight;
+      }
+
+      //*** Draw curves ****
+      if(display){
+        polylines( rectangles, lastOkFittedRight, 0, lastOkFittedColor, 8, 0);
+        polylines( rectangles, lastOkFittedLeft, 0, lastOkFittedColor, 8, 0);
+        polylines( rectangles, fittedLeft, 0, curFittedColor, 8, 0);
+        polylines( rectangles, fittedRight, 0, curFittedColor, 8, 0);
+      }
+
+      //**** Find average curve *****
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      vector<float> avgBeta = vector<float>();
+      vector<Point> avgCurve;
+      if(leftBeta.size() > 0 && rightBeta.size() > 0){//someRight && someLeft){
+        for(int i=0; i<leftBeta.size(); i++){
+          avgBeta.push_back((leftBeta[i]+rightBeta[i])/2);//avgBeta.push_back((lastOkBetaLeft[i]+lastOkBetaRight[i])/2);
+        }
+        avgCurve = computePoly(avgBeta, height);
+        lastOkAvgCurve = avgCurve;
+      }
+      if(display){
+        polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
+      }
+
+      //***** Display Images ******
+      if(display){
+        displayImg("Rectangles",rectangles);
+      }
+
+      //displayImg("Wip",wip);
+      //displayImg("Src",src);
+
+      //*** Inverse perspective transform ***
+      if(profile){
+        gettimeofday(&start, NULL);
+        startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+      }
+      rect_persp = rectangles.clone();
+      perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints, lambda);
+      homography = lambda;
+      Mat out;
+      addWeighted( src, 1, rect_persp, 1, 0.0, out);
+
+      if(display){
+        displayImg("Output", out);
+      }
+
+
+      if(profile){
+        gettimeofday(&end, NULL);
+        endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+        cout << "Inverse perspective: " << endMillis - startMillis << endl;
+      }
+
+      //push lanes in the vector of lanes that the function will return
+      if (someLeft && someRight) {
+        lanes.push_back(fittedLeft);
+        lanes.push_back(fittedRight);
+      }
+
+    }else if(debug){
+      cout << "No Curves Found" << endl;
     }
-    if(display){
-      polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
-    }
-
-    //***** Display Images ******
-    if(display){
-      displayImg("Rectangles",rectangles);
-    }
-
-    //displayImg("Wip",wip);
-    //displayImg("Src",src);
-
-    //*** Inverse perspective transform ***
-    if(profile){
-      gettimeofday(&start, NULL);
-      startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-    }
-    rect_persp = rectangles.clone();
-    perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints, lambda);
-    homography = lambda;
-    Mat out;
-    addWeighted( src, 1, rect_persp, 1, 0.0, out);
-
-    if(display){
-      displayImg("Output", out);
-    }
-
-
-    if(profile){
-      gettimeofday(&end, NULL);
-      endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-      cout << "Inverse perspective: " << endMillis - startMillis << endl;
-    }
-
-    //push lanes in the vector of lanes that the function will return
-    lanes.push_back(fittedLeft);
-    lanes.push_back(fittedRight);
-  }else if(debug){
-    cout << "No Curves Found" << endl;
   }
-
   counter++;
 
   if(profile){
@@ -1784,8 +1786,6 @@ Mat LanesDetection::lanes3D(int height, Mat homography, vector<Point> lane){
   //vector<Point> row_of_lanes = lanes[0]; Mat lanes_mat = Mat (row_of_lanes).reshape(0,lanes.size());
   Mat lanes_mat = Mat::zeros( height, 3 , 6 );
   //place the coordinates of a line in a matrix of 3 column - x,y,z
-  cout << "QUI PRENDE" << endl;
-  cout << "lanes_mat.size().height: " << lanes_mat.size().height << endl;
   for (int  i = 0; i < lanes_mat.size().height; i++) {
     lanes_mat.at<double>(i,0) = lane[i].x;
     lanes_mat.at<double>(i,1) = lane[i].y;
