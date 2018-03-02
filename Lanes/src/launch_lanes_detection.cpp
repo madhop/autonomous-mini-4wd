@@ -71,6 +71,7 @@ int main( int argc, char** argv ){
     Mat rectanglesBirdMat = lanesDetection.getRectanglesBirdMat();
 
     //* Write to video *
+    /*
     if (lanesMat.size().width > 0 && lanesMat.size().height>0) {
       lanesVideo << lanesMat;
     }
@@ -79,7 +80,7 @@ int main( int argc, char** argv ){
     }
     if (rectanglesBirdMat.size().width > 0 && rectanglesBirdMat.size().height>0) {
       rectanglesBirdVideo << rectanglesBirdMat;
-    }
+    }*/
 
     //* Kill frame *
     //waitKey(0);
