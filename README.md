@@ -5,20 +5,24 @@ OpenCV installation guide: http://docs.opencv.org/2.4/doc/tutorials/introduction
 Example video data:
 https://mega.nz/#!BuoF0bqT!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
 
--go to folder Lanes/build
--execute the command "cmake ."
--execute the command "make"
-
--to run launch_lanes_detection.cpp execute the command "./launch_lanes_detection ../data/vid/gopro1_576.mp4"
+- go to folder Lanes/build
+- execute the command "cmake ."
+- execute the command "make"
 
 The class "LanesDetection" provides the position of the two detected lanes in two different ways:
-- The function "detectLanesImage" returns each point of both lanes as pixel coordiantes, where the origin is the top-left corner of the image.
-- The function "detectLanesWorld" returns each point of both lanes as cm coordinates, where the origin is the position of the camera.
+- The function "detectLanesImage(Mat src)" returns each point of both lanes as pixel coordiantes, where the origin is the top-left corner of the image.
+- The function "detectLanesWorld(Mat src)" returns each point of both lanes as cm coordinates, where the origin is the position of the camera.
+
+You can try an example provided by us by running the command "./launch_lanes_detection [video_path]"
 
 Algorithm:
-- Camera calibration
-- Vanishing point: computed in the first "vanishingPointWindow" frames of the video.
+- Camera calibration: each frame is undistorted.
+- Vanishing point (green dot in the image): computed as moving average in the first "vanishingPointWindow" frames of the video.
 ![alt text](https://image.ibb.co/j8JF8S/2_vanish_point.jpg)
+  Only after the computation of the vanishing point, the algorithm start looking for the lanes:
+- Perspective transform to have a bird view of the image
+- Binary thresholding of the perspective transform to distinguish the lanes from the road
+![alt text](https://image.ibb.co/djExoS/threshold.jpg)
 
 **VANISHING POINT**
 
