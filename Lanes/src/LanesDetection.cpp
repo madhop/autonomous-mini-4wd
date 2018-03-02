@@ -27,12 +27,12 @@ const int straight_tolerance_ratio = 80;
 const int max_rmse_ratio = 70;
 const int max_bad_curves = 3;
 const int min_good_curves = 1;
-const int min_barycenters = 2; //in realtà andrebbe messo come ratio e diviso per n_rect
-const int next_bary_max_distance = 50; //anche qui va messo ratio
+const int min_barycenters = 2;
+const int next_bary_max_distance = 50;
 const int rmse_tolerance = 20;
 const int min_similar_curves = 3;
 const int adj_rmse_threshold = 30;
-const int n_long_lines = 20; //number of lines for vanishing point
+const int n_long_lines = 20;
 const float max_slope = 10;
 const float min_slope = 0.1;
 const int window_width = 800;
@@ -52,6 +52,7 @@ const int camera_type = 0; //0:GoPro hero 4
 const float brightness_model_B0 = 130;
 const float brightness_model_B1 = 0.66;
 const float persp_anchor_offset_ratio = 4;
+const int hist_top = 10;
 //colors
 const Scalar rect_color = Scalar(0,0,255);
 const Scalar last_ok_fitted_color = Scalar(255,0,0);
@@ -104,6 +105,7 @@ LanesDetection::LanesDetection(){
     this->brightnessModelB0 = brightness_model_B0;
     this->brightnessModelB1 = brightness_model_B1;
     this->perspAnchorOffsetRatio = persp_anchor_offset_ratio;
+    this->histTop = hist_top;
     //colors
     this->rectColor = rect_color;
     this->lastOkFittedColor = last_ok_fitted_color;
@@ -255,7 +257,21 @@ float LanesDetection::getBrightnessModelB1(){
 float LanesDetection::getPerspAnchorOffsetRatio(){
   return brightnessModelB1;
 }
-
+int LanesDetection::getHistTop(){
+  return histTop;
+}
+Mat LanesDetection::getLanesMat(){
+  return lanesMat;
+}
+Mat LanesDetection::getRectanglesPerspMat(){
+  return rectanglesPerspMat;
+}
+Mat LanesDetection::getRectanglesBirdMat(){
+  return rectanglesBirdMat;
+}
+Mat LanesDetection::getUndistortedMat(){
+  return undistortedMat;
+}
 
 void LanesDetection::setCannyLowThreshold(int cannyLowThreshold){
   this->cannyLowThreshold = cannyLowThreshold;
@@ -385,6 +401,21 @@ void LanesDetection::setBrightnessModelB1(float brightnessModelB1){
 }
 void LanesDetection::setPerspAnchorOffsetRatio(float perspAnchorOffsetRatio){
   this->perspAnchorOffsetRatio = perspAnchorOffsetRatio;
+}
+void LanesDetection::setHistTop(float histTop){
+  this->histTop = histTop;
+}
+void LanesDetection::setLanesMat(Mat lanesMat){
+  this->lanesMat = lanesMat;
+}
+void LanesDetection::setRectanglesPerspMat(Mat rectanglesPerspMat){
+  this->rectanglesPerspMat = rectanglesPerspMat;
+}
+void LanesDetection::setRectanglesBirdMat(Mat rectanglesBirdMat){
+  this->rectanglesBirdMat = rectanglesBirdMat;
+}
+void LanesDetection::setUndistortedMat(Mat undistortedMat){
+  this->undistortedMat = undistortedMat;
 }
 
 
@@ -565,7 +596,7 @@ Point LanesDetection::computeBarycenter(vector<Point> points, Mat mat, vector<Po
           circle( mat, barycenter, 5, Scalar( 0, 255, 0 ),  3, 3 );
           //circle( mat, P1, 5, Scalar( 200, 0, 0 ),  2, 2 );
           //circle( mat, P2, 5, Scalar( 200, 0, 0 ),  2, 2 );
-          displayImg("barycenter",mat);
+          //displayImg("barycenter",mat);
         }
         if(profile){
           gettimeofday(&end, NULL);
@@ -664,7 +695,7 @@ int LanesDetection::findHistAcc(Mat mat, int pos, int rect_offset){
   }
   for(int i = 0; i<width; i++){
     int sum = 0;
-    for(int j = height-(height/10); j < (height-rect_offset); j ++){//for(int j = height/2; j < height; j ++){
+    for(int j = height-(height/histTop); j < (height-rect_offset); j ++){//for(int j = height/2; j < height; j ++){
       Scalar intensity = mat.at<uchar>(j, i);
       if(intensity.val[0] == 255){
         sum++;
@@ -822,7 +853,6 @@ int LanesDetection::findCurvePoints(bool &some_curve, vector<Point> &rectCenters
       startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     }
     int firstX = findHistAcc(wip, pos, rect_offset); //0 means left
-    cout << "first x " << firstX << endl;
     if(firstX == -1){  //in caso non trovi il massimo
       firstX = width/4;
     }
@@ -1133,7 +1163,6 @@ if(intersectionPoints.size() > 0){
 
   Point persp_left_anchor = Point(0, height - ((height - vanishing_point.y) - (height - vanishing_point.y)/perspAnchorOffsetRatio)); //Point(0, height - persp_anchor_offset);
   Point persp_right_anchor = Point(width, height - ((height - vanishing_point.y) - (height - vanishing_point.y)/perspAnchorOffsetRatio));//Point(width, height - persp_anchor_offset);
-  cout << "persp_left_anchor.y: " << persp_left_anchor.y  << endl;
   float m_left = (float)(persp_left_anchor.y - vanishing_point.y)/(persp_left_anchor.x - vanishing_point.x); //cout << "m left " << m_left << endl;
   float q_left = vanishing_point.y-m_left*vanishing_point.x;
   float m_right = (float)(persp_right_anchor.y - vanishing_point.y)/(persp_right_anchor.x - vanishing_point.x); //cout << "m right " << m_right << endl;
@@ -1173,7 +1202,6 @@ if(intersectionPoints.size() > 0){
   //horizontal lines
   int xUp1 = 0;
   int yUp1 = horizon + horizon_offset;//50; //height - height/3;
-  cout << "horizon_offset: "  << horizon_offset << endl;
   int xUp2 = width;
   int yUp2 = yUp1;
   int xDown1 = 0;
@@ -1378,14 +1406,13 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
   const int max_rmse = height/maxRmseRatio; //height perchè la parabola orizzontale è calcolata da x a y
   const int mask_offset = height/maskOffsetRatio;
 
-
-
   //*** Camera calibration ***
   if(profile){
     gettimeofday(&start, NULL);
     startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
   }
   src = calibrateCamera(src);
+  undistortedMat = src.clone();
   if(profile){
     gettimeofday(&end, NULL);
     endMillis  = (end.tv_sec * 1000) + (end.tv_usec / 1000);
@@ -1393,7 +1420,6 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
   }
 
   wip = src.clone();
-
 
 
 
@@ -1462,8 +1488,8 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
         leftMat = computeBinaryThresholding(leftMat);
         rightMat = computeBinaryThresholding(rightMat);
       }
-      displayImg("left", leftMat);
-      displayImg("right", rightMat);
+      //displayImg("left", leftMat);
+      //displayImg("right", rightMat);
       wip = computeBinaryThresholding(wip);
 
 
@@ -1655,6 +1681,7 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
         polylines( rectangles, avgCurve, 0, avgCurveAvg, 8, 0);
       }
 
+      rectanglesBirdMat = rectangles;
       //***** Display Images ******
       if(display){
         displayImg("Rectangles",rectangles);
@@ -1672,10 +1699,13 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
       perspectiveTransform(rect_persp,perspTransfOutPoints,perspTransfInPoints, lambda);
       homography = lambda;
       Mat out;
+      //addWeighted( src, 1, rect_persp, 1, 0.0, out);
       addWeighted( src, 1, rect_persp, 1, 0.0, out);
 
+      rectanglesPerspMat = rect_persp;
       if(display){
         displayImg("Output", out);
+        displayImg("Inverse", rect_persp);
       }
 
 
@@ -1736,7 +1766,6 @@ vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
   vector<vector<Point>> lanesImage;
   vector<vector<Point>> lanes = detectLanes(src, homography);
   //place the lanes in a matrix, upon which we apply the homography matrix
-  cout << "lanes.size(): " << lanes.size() << endl;
   if (lanes.size() > 1) {
     Mat reversed_right = lanes3D(src.size().height, homography, lanes[1]);
     Mat reversed_left = lanes3D(src.size().height, homography, lanes[0]);
@@ -1749,7 +1778,8 @@ vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
     }
     lanesImage.push_back(rightLanesImage);
     lanesImage.push_back(leftLanesImage);
-    Mat out = Mat::zeros( src.size().height, src.size().width , src.type() );
+    Mat out = undistortedMat;//Mat::zeros( src.size().height, src.size().width , src.type() );
+    lanesMat = out;
     // draw
     if(display){
       for (int i = 0; i < lanesImage.size(); i++) {

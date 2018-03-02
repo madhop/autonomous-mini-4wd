@@ -19,7 +19,7 @@ using namespace cv;
    int blurKernel;
    int maskOffsetRatio;
    int rectWidthRatio;
-   int rectOffsetRatio;
+   int rectOffsetRatio; //default = 20; avoid dashboard for histogram and for placing rectangles
    int nRect;
    int rectThicknessRatio;
    int totMinWeight;
@@ -33,15 +33,15 @@ using namespace cv;
    int rmseTolerance;
    int minSimilarCurves;
    int adjRmseThreshold;
-   int nLongLines;
+   int nLongLines;  //default = 20; number of lines for vanishing point
    float maxSlope;
    float minSlope;
    int windowWidth;
    int windowHeight;
    int horizonOffsetRatio;
    int straightRange;
-   int vanishingPointWindow;
-   int vanishingPointWindowOffset;
+   int vanishingPointWindow;  //default = 10; number of frames required to comput vanishing point
+   int vanishingPointWindowOffset;  //default = 1; number of frames after which starting to compute vanishing point
    int order;
    int nBarycentersWindow;
    int partialFittingOrder;
@@ -53,6 +53,7 @@ using namespace cv;
    float brightnessModelB0;
    float brightnessModelB1;
    float perspAnchorOffsetRatio;
+   int histTop; //default = 10; histogram is computed from "height-(height/histTop)" to "(height-rect_offset)"
    //colors
    Scalar rectColor;
    Scalar lastOkFittedColor;
@@ -80,6 +81,11 @@ using namespace cv;
    vector<float> lastOkBetaRight;
    vector<Point> lastOkAvgCurve;
    int counter;
+   //matrices
+   Mat lanesMat;
+   Mat rectanglesPerspMat;
+   Mat rectanglesBirdMat;
+   Mat undistortedMat;
 
 
 
@@ -137,6 +143,11 @@ using namespace cv;
    float getBrightnessModelB0();
    float getBrightnessModelB1();
    float getPerspAnchorOffsetRatio();
+   int getHistTop();
+   Mat getLanesMat();
+   Mat getRectanglesPerspMat();
+   Mat getRectanglesBirdMat();
+   Mat getUndistortedMat();
 
    void setNRect(int nRect);
    void setRectThicknessRatio(int rectThicknessRatio);
@@ -190,6 +201,11 @@ using namespace cv;
    void setBrightnessModelB0(float brightnessModelB0);
    void setBrightnessModelB1(float brightnessModelB1);
    void setPerspAnchorOffsetRatio(float perspAnchorOffsetRatio);
+   void setHistTop(float histTop);
+   void setLanesMat(Mat lanesMat);
+   void setRectanglesPerspMat(Mat rectanglesPerspMat);
+   void setRectanglesBirdMat(Mat rectanglesBirdMat);
+   void setUndistortedMat(Mat undistortedMat);
 
    //Constructor
    LanesDetection();

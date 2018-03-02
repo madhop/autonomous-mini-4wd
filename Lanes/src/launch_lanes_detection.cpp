@@ -21,63 +21,73 @@ int main( int argc, char** argv ){
   }
 
   //* Open video to write *
-  /*
-  VideoWriter outputVideo;
-  outputVideo.open("out.avi", VideoWriter::fourcc('P','I','M','1'), cap.get(CV_CAP_PROP_FPS), Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
-  if (!outputVideo.isOpened())
-  {
-  cout  << "Could not open the output video" << endl;
-  return -1;
+
+  VideoWriter lanesVideo;
+  lanesVideo.open("lanes.avi", VideoWriter::fourcc('P','I','M','1'), 20, Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true); //cap.get(CV_CAP_PROP_FPS)
+  VideoWriter rectanglesVideo;
+  rectanglesVideo.open("rectangles.avi", VideoWriter::fourcc('P','I','M','1'), 20, Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
+  VideoWriter rectanglesBirdVideo;
+  rectanglesBirdVideo.open("rectanglesBird.avi", VideoWriter::fourcc('P','I','M','1'), 20, Size((int) cap.get(CV_CAP_PROP_FRAME_WIDTH), (int) cap.get(CV_CAP_PROP_FRAME_HEIGHT)), true);
+
+
+
+  LanesDetection lanesDetection = LanesDetection();
+  timeval tot_start, tot_end;
+  long tot_startMillis, tot_endMillis;
+  gettimeofday(&tot_start, NULL);
+  tot_startMillis = (tot_start.tv_sec * 1000) + (tot_start.tv_usec / 1000);
+  for(;;){
+    Mat src;
+    cap >> src;
+    if(src.empty()){
+      break;
+    }
+
+    /*
+    timeval start, end;
+    long startMillis, endMillis;
+    gettimeofday(&start, NULL);
+    startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
+    */
+    //vector<vector<Point>> lanes = lanesDetection.detectLanes(src);
+    /*lanesDetection.setRectWidthRatio(23);
+    lanesDetection.setMaskOffsetRatio(9);
+    lanesDetection.setPerspAnchorOffsetRatio(1);
+    lanesDetection.setOrder(2);*/
+    vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
+    //vector<vector<Point3f>> lanes = lanesDetection.detectLanesWorld(src);
+    if (lanes.size() == 0) {
+      cout << "No lanes detected " << endl;
+    }
+
+    /*
+    cout << "turn: " << turn << endl;
+    gettimeofday(&end, NULL);
+    endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
+    cout << "Frame elapsed time: " << endMillis - startMillis << endl;
+    */
+    Mat lanesMat = lanesDetection.getLanesMat();
+    Mat rectanglesPerspMat = lanesDetection.getRectanglesPerspMat();
+    Mat rectanglesBirdMat = lanesDetection.getRectanglesBirdMat();
+
+    //* Write to video *
+    if (lanesMat.size().width > 0 && lanesMat.size().height>0) {
+      lanesVideo << lanesMat;
+    }
+    if (rectanglesPerspMat.size().width > 0 && rectanglesPerspMat.size().height>0) {
+      rectanglesVideo << rectanglesPerspMat;
+    }
+    if (rectanglesBirdMat.size().width > 0 && rectanglesBirdMat.size().height>0) {
+      rectanglesBirdVideo << rectanglesBirdMat;
+    }
+
+    //* Kill frame *
+    //waitKey(0);
+    waitKey(100);
   }
-  */
+  gettimeofday(&tot_end, NULL);
+  tot_endMillis = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);
+  cout << "Tot elapsed time: " << tot_endMillis - tot_startMillis << endl;
 
-
-
-
-LanesDetection lanesDetection = LanesDetection();
-timeval tot_start, tot_end;
-long tot_startMillis, tot_endMillis;
-gettimeofday(&tot_start, NULL);
-tot_startMillis = (tot_start.tv_sec * 1000) + (tot_start.tv_usec / 1000);
-for(;;){
-  Mat src;
-  cap >> src;
-  if(src.empty()){
-    break;
-  }
-
-  /*
-  timeval start, end;
-  long startMillis, endMillis;
-  gettimeofday(&start, NULL);
-  startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
-  */
-  //vector<vector<Point>> lanes = lanesDetection.detectLanes(src);
-  //vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
-  lanesDetection.setRectWidthRatio(23);
-  lanesDetection.setMaskOffsetRatio(9);
-  lanesDetection.setRectOffsetRatio(20);
-  lanesDetection.setPerspAnchorOffsetRatio(1);
-  lanesDetection.setOrder(2);
-  vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
-  //vector<vector<Point3f>> lanes = lanesDetection.detectLanesWorld(src);
-  cout << "How many lanes? " << lanes.size() << endl;
-  /*
-  cout << "turn: " << turn << endl;
-  gettimeofday(&end, NULL);
-  endMillis = (end.tv_sec * 1000) + (end.tv_usec / 1000);
-  cout << "Frame elapsed time: " << endMillis - startMillis << endl;
-  */
-
-  //* Write to video *
-  //outputVideo << src;
-
-  //* Kill frame *
-  waitKey(0);
-}
-gettimeofday(&tot_end, NULL);
-tot_endMillis = (tot_end.tv_sec * 1000) + (tot_end.tv_usec / 1000);
-cout << "Tot elapsed time: " << tot_endMillis - tot_startMillis << endl;
-
-return 0;
+  return 0;
 }
