@@ -9,7 +9,18 @@ https://mega.nz/#!BuoF0bqT!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
 -execute the command "cmake ."
 -execute the command "make"
 
--to run curve_fitting execute the command "./curve_fitting ../data/vid/challenge.MP4"
+-to run launch_lanes_detection.cpp execute the command "./launch_lanes_detection ../data/vid/gopro1_576.mp4"
+
+The class "LanesDetection" provides the position of the two detected lanes in two different ways:
+- The function "detectLanesImage" returns each point of both lanes as pixel coordiantes, where the origin is the top-left corner of the image.
+- The function "detectLanesWorld" returns each point of both lanes as cm coordinates, where the origin is the position of the camera.
+
+Algorithm:
+- Camera calibration
+- Vanishing point: computed in the first "vanishingPointWindow" frames of the video.
+![alt text](https://image.ibb.co/j8JF8S/2_vanish_point.jpg)
+
+**VANISHING POINT**
 
 Up to now the algorithm provides:
 - Gaussian Blur
@@ -35,3 +46,5 @@ Up to now the algorithm provides:
 - Adaptive curve mask
   When a good lane is detected, we compute a mask shaped on it and use it to refine the area in which
   to look for the next lanes, and we keep the same until a bad curve is detected; then, we reset.
+
+Given different videos, you may need to change some parameters (the width/height of the rectangles, the thresholding, the order of the curve to fit ecc.) in order to get a better performance in each case.
