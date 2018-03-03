@@ -45,8 +45,7 @@ Here the results on three different video (click to play):
 Given different videos, in order to get a better performance in each different case, you may need to change some parameters:
 - "rectWidthRatio": to change the width of the windows (Figure 4);
 - "nRect": to change the number of windows;
-- "brightnessModelB0" and "brightnessModelB1": to tune the thresholding;
-- "order": the order of the curve to fit;
+- "order": the order of the polynomial to fit;
 - "horizonOffsetRatio": to move up/down the smaller base of the trapezoid (four yellow dots in Figure 1) upon which the perspective transform is computed;
 - "perspAnchorOffsetRatio": to move up/down the bigger base of the trapezoid;
 - "rectOffsetRatio": to avoid the dashboard;
