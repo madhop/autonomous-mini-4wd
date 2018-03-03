@@ -50,10 +50,27 @@ int main( int argc, char** argv ){
     startMillis = (start.tv_sec * 1000) + (start.tv_usec / 1000);
     */
     //vector<vector<Point>> lanes = lanesDetection.detectLanes(src);
-    /*lanesDetection.setRectWidthRatio(23);
+
+    /*
+    //Parameters:
+    - 1.mp4:
+    lanesDetection.setRectWidthRatio(23);
     lanesDetection.setMaskOffsetRatio(9);
     lanesDetection.setPerspAnchorOffsetRatio(1);
-    lanesDetection.setOrder(2);*/
+    lanesDetection.setOrder(2);
+    lanesDetection.setHistTop(3);
+    - 2.mp4:
+    lanesDetection.setRectWidthRatio(23);
+    lanesDetection.setMaskOffsetRatio(9);
+    lanesDetection.setPerspAnchorOffsetRatio(1);
+    lanesDetection.setOrder(2);
+    - 3.mp4: default parameters
+    lanesDetection.setRectOffsetRatio(60);
+    lanesDetection.setHistTop(10);
+    lanesDetection.setHorizonOffsetRatio(20);
+    */
+
+
     vector<vector<Point>> lanes = lanesDetection.detectLanesImage(src);
     //vector<vector<Point3f>> lanes = lanesDetection.detectLanesWorld(src);
     if (lanes.size() == 0) {
@@ -71,7 +88,7 @@ int main( int argc, char** argv ){
     Mat rectanglesBirdMat = lanesDetection.getRectanglesBirdMat();
 
     //* Write to video *
-    /*
+
     if (lanesMat.size().width > 0 && lanesMat.size().height>0) {
       lanesVideo << lanesMat;
     }
@@ -80,7 +97,7 @@ int main( int argc, char** argv ){
     }
     if (rectanglesBirdMat.size().width > 0 && rectanglesBirdMat.size().height>0) {
       rectanglesBirdVideo << rectanglesBirdMat;
-    }*/
+    }
 
     //* Kill frame *
     //waitKey(0);

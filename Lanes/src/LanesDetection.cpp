@@ -1663,6 +1663,7 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
         polylines( rectangles, fittedRight, 0, curFittedColor, 8, 0);
       }
 
+
       //**** Find average curve *****
       if(profile){
         gettimeofday(&start, NULL);
@@ -1682,6 +1683,8 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
       }
 
       rectanglesBirdMat = rectangles;
+
+
       //***** Display Images ******
       if(display){
         displayImg("Rectangles",rectangles);
@@ -1703,6 +1706,26 @@ vector<vector<Point>> LanesDetection::detectLanes(Mat src, Mat &homography){
       addWeighted( src, 1, rect_persp, 1, 0.0, out);
 
       rectanglesPerspMat = rect_persp;
+
+      //Lanes Mat
+      Mat lanesMatWip = Mat::zeros( src.size().height, src.size().width , src.type() );
+      polylines( lanesMatWip, fittedLeft, 0, Scalar(255,0,0), 10, 0);
+      polylines( lanesMatWip, fittedRight, 0, Scalar(255,0,0), 10, 0);
+      perspectiveTransform(lanesMatWip,perspTransfOutPoints,perspTransfInPoints, lambda);
+
+      lanesMat = src.clone();
+      for(int i=0; i<src.size().height;i++){
+        for(int j=0; j<src.size().width;j++){
+          Vec3b color = lanesMatWip.at<Vec3b>(i,j);
+          if( ! (color[0] == 0 && color[1] == 0 && color[2] == 0) ){
+            lanesMat.at<Vec3b>(i,j)= color;
+          }
+        }
+      }
+
+      displayImg("lanesMatWip",lanesMat);
+      //addWeighted(src,1,rect_persp,1)
+
       if(display){
         displayImg("Output", out);
         displayImg("Inverse", rect_persp);
@@ -1778,7 +1801,7 @@ vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
     }
     lanesImage.push_back(rightLanesImage);
     lanesImage.push_back(leftLanesImage);
-    Mat out = undistortedMat;//Mat::zeros( src.size().height, src.size().width , src.type() );
+    /*Mat out = undistortedMat;//Mat::zeros( src.size().height, src.size().width , src.type() );
     lanesMat = out;
     // draw
     if(display){
@@ -1786,7 +1809,7 @@ vector<vector<Point>> LanesDetection::detectLanesImage(Mat src){
         polylines( out, lanesImage[i], 0, lastOkFittedColor, 8, 0);
       }
       displayImg("vector of lanes", out);
-    }
+    }*/
   }
   return lanesImage;
 }
