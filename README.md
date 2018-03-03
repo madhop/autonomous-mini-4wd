@@ -8,21 +8,33 @@ The function "detectLanesWorld(Mat src)" returns each point of both lanes as cm 
 World coordinates are just an esteem:
 
 ## Prerequisites
-- cmake: "sudo apt-get install cmake" or "sudo apt-get upgrade" if already installed
+- cmake
+```
+sudo apt-get install cmake
+```
+or
+```
+sudo apt-get upgrade
+```
+if already installed
+
 - OpenCV: installation guide http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
-Example video data:
+### Example video data
 - http://www.mediafire.com/file/5b1xa54atds5eaq/1.mp4
 - http://www.mediafire.com/file/rvrm03gxndmexzx/2.mp4
 - http://www.mediafire.com/file/vjpmhjn534mc87c/3.mp4
 
 ## Running test
-```
+
 - clone/download master
 - from terminal, go to the folder Lanes/build
-- execute the command "cmake ."
-- execute the command "make"
+- execute the commands
 ```
+cmake .
+make
+ ```
+
 You can try an example provided by us by running the command "./launch_lanes_detection [video_path]"
 
 Here the results on three different video (click to play):  
