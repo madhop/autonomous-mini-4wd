@@ -15,12 +15,19 @@ The class "LanesDetection" provides the position of the two detected lanes in tw
 
 You can try an example provided by us by running the command "./launch_lanes_detection [video_path]"
 
-*The algorithm*:
-- ***Camera calibration***: each frame is undistorted.
+Given different videos, in order to get a better performance in each different case, you may need to change some parameters:
+- "rectWidthRatio": to change the width of the windows (Figure 3);
+- "nRect": to change the number of windows;
+- "brightnessModelB0" and "brightnessModelB1": to tune the thresholding;
+- "order": the order of the curve to fit;
+- "perspAnchorOffsetRatio": to move up/down the bigger base of the trapezoid (four yellow dots in Figure 1) upon which the perspective transform is computed.
+
+***The algorithm***:
+- **Camera calibration**: each frame is undistorted.
 - **Vanishing point** (green dot in the image): computed as moving average in the first "vanishingPointWindow" frames of the video.
 ![alt text](https://image.ibb.co/j8JF8S/2_vanish_point.jpg)
 (Figure 1)
-  Only after the computation of the vanishing point, the algorithm start looking for the lanes:
+Only after the computation of the vanishing point, the algorithm start looking for the lanes:
 - **Perspective transform** to have a bird view of the image
 - **Binary thresholding** of the perspective transform to distinguish the lanes from the road
 ![alt text](https://image.ibb.co/djExoS/threshold.jpg)
@@ -31,8 +38,5 @@ You can try an example provided by us by running the command "./launch_lanes_det
   Then the first "partialFittingOrder" windows are places one on top of each other.
   After "partialFittingOrder" windows, every window is place as result of the fitting of the centroids of the previous windows.
 - **Polyfit** of the centroids of the windows to find the two lanes (green lines in Figure 3).
-![alt text] (https://image.ibb.co/focyTS/rectangles.jpg)
+![alt text](https://image.ibb.co/focyTS/rectangles.jpg)
 (Figure 3)
-
-
-Given different videos, you may need to change some parameters (the width/height of the rectangles, the thresholding, the order of the curve to fit ecc.) in order to get a better performance in each case.
