@@ -1,4 +1,4 @@
-# autonomous-mini-4wd
+# OpenCV-based Lanes Detection
 
 This algorithm detects the two more likely lanes in a video footage.
 The class "LanesDetection" provides two functions
@@ -20,9 +20,8 @@ The function "detectLanesWorld(Mat src)" takes as input a frame and returns a ve
 - OpenCV: installation guide http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
 ### Example video data
-- http://www.mediafire.com/file/5b1xa54atds5eaq/1.mp4
-- http://www.mediafire.com/file/rvrm03gxndmexzx/2.mp4
-- http://www.mediafire.com/file/vjpmhjn534mc87c/3.mp4
+Try the algorithm with some toy examples.
+http://www.mediafire.com/file/xsv2qv5cpnzo6as/autonomous-mini-4wd-examples.zip
 
 ## Running test
 
@@ -40,7 +39,7 @@ You can try an example provided by us by running the command
 ```
 
 Here the results on three different video (click to play):  
-[![Alt text for your video](https://img.youtube.com/vi/mXnx486TT08/0.jpg)](https://www.youtube.com/watch?v=mXnx486TT08&feature=youtu.be)
+[![Alt text for your video](https://img.youtube.com/vi/zvCGRYlw3hM/0.jpg)](https://youtu.be/zvCGRYlw3hM)
 
 ### Parameters
 Given different videos, in order to get a better performance in each different case, you may need to change some parameters:
@@ -81,7 +80,10 @@ Only after the vanishing point is computed, the algorithm start looking for the 
 - World coordinates are just an esteem: we took n measurements from a suitably crafted video and computed the scaling factor. However, the goodness of the esteem depends on how precise is the vanishing point. A better estimation could be obtained by computing the roto-transalition matrix of the camera.
 - Histogram could be improved by fitting a mixture of Gaussian models or implementing a derivative-based model.
 - The algorithm returns only two lanes. It could be extended to multiple ones.
+- The vanishing point could be computed with better computer vision techniques and tracked with an algorithm such as Kalman filter.
 
 ## Authors
 **Luca Fucci** and **Umberto Fazio**  
-from Politecnico di Milano
+from Politecnico di Milano  
+
+***See you soon..***
