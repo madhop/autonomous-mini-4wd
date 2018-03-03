@@ -63,9 +63,9 @@ Given different videos, in order to get a better performance in each different c
 - **Vanishing point** (green dot in the image): computed as moving average in the first "vanishingPointWindow" frames of the video, after "vanishingPointWindowOffset" frames.
 ![alt text](https://image.ibb.co/j8JF8S/2_vanish_point.jpg)  
 (Figure 1)  
-Only after the vanishing points computes, the algorithm start looking for the lanes:
-- **Perspective transform** to have a bird view of the image
-- **Binary thresholding** of the perspective transform to distinguish the lanes from the road
+Only after the vanishing point is computed, the algorithm start looking for the lanes:
+- **Perspective transform** to have a bird view of the image.
+- **Binary thresholding** of the perspective transform to distinguish the lanes from the road.
 ![alt text](https://image.ibb.co/djExoS/threshold.jpg)  
 (Figure 2)
 - **Histogram** to compute the distribution of white pixels along the vertical lines. The two highest peaks are taken.
