@@ -1,9 +1,15 @@
 # autonomous-mini-4wd
 
-OpenCV installation guide: http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
+OpenCV installation guide:  
+http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
-Example video data:
-https://mega.nz/#!BuoF0bqT!y6kVfObzDOj2Tt8uet7h_UjsCH8HSNY571BSNvWxdQQ
+Example video data:  
+- http://www.mediafire.com/file/5b1xa54atds5eaq/1.mp4
+- http://www.mediafire.com/file/rvrm03gxndmexzx/2.mp4
+- http://www.mediafire.com/file/vjpmhjn534mc87c/3.mp4
+
+Here the results on three different video:  
+[![Alt text for your video](https://img.youtube.com/vi/mXnx486TT08/0.jpg)](https://www.youtube.com/watch?v=mXnx486TT08&feature=youtu.be)
 
 - go to folder Lanes/build
 - execute the command "cmake ."
@@ -13,6 +19,8 @@ The class "LanesDetection" provides the position of the two detected lanes in tw
 - The function "detectLanesImage(Mat src)" returns each point of both lanes as pixel coordiantes, where the origin is the top-left corner of the image.
 - The function "detectLanesWorld(Mat src)" returns each point of both lanes as cm coordinates, where the origin is the position of the camera.
 
+World coordinates are just an esteem
+
 You can try an example provided by us by running the command "./launch_lanes_detection [video_path]"
 
 Given different videos, in order to get a better performance in each different case, you may need to change some parameters:
@@ -20,9 +28,11 @@ Given different videos, in order to get a better performance in each different c
 - "nRect": to change the number of windows;
 - "brightnessModelB0" and "brightnessModelB1": to tune the thresholding;
 - "order": the order of the curve to fit;
-- "perspAnchorOffsetRatio": to move up/down the bigger base of the trapezoid (four yellow dots in Figure 1) upon which the perspective transform is computed.
+- "horizonOffsetRatio": to move up/down the smaller base of the trapezoid (four yellow dots in Figure 1) upon which the perspective transform is computed;
+- "perspAnchorOffsetRatio": to move up/down the bigger base of the trapezoid;
+- "rectOffsetRatio": to avoid the dashboard;
 
-##The algorithm:
+## The algorithm:
 - **Camera calibration**: each frame is undistorted.
 - **Vanishing point** (green dot in the image): computed as moving average in the first "vanishingPointWindow" frames of the video.
 ![alt text](https://image.ibb.co/j8JF8S/2_vanish_point.jpg)  
@@ -41,6 +51,6 @@ Only after the computation of the vanishing point, the algorithm start looking f
 ![alt text](https://image.ibb.co/focyTS/rectangles.jpg)  
 (Figure 3)  
 
-##Authors
-**Luca Fucci** and **Umberto Fazio**
+## Authors
+**Luca Fucci** and **Umberto Fazio**  
 from Politecnico di Milano
