@@ -17,15 +17,15 @@ Example video data:
 - http://www.mediafire.com/file/vjpmhjn534mc87c/3.mp4
 
 ## Running test
-'''
+```
 - clone/download master
 - from terminal, go to the folder Lanes/build
 - execute the command "cmake ."
 - execute the command "make"
-'''
+```
 You can try an example provided by us by running the command "./launch_lanes_detection [video_path]"
 
-Here the results on three different video:  
+Here the results on three different video (click to play):  
 [![Alt text for your video](https://img.youtube.com/vi/mXnx486TT08/0.jpg)](https://www.youtube.com/watch?v=mXnx486TT08&feature=youtu.be)
 
 Given different videos, in order to get a better performance in each different case, you may need to change some parameters:
