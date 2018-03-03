@@ -17,7 +17,7 @@ The function "detectLanesWorld(Mat src)" takes as input a frame and returns a ve
   sudo apt-get upgrade
   ```
 
-- OpenCV: installation guide http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
+- OpenCV 3.3.0: installation guide http://docs.opencv.org/2.4/doc/tutorials/introduction/linux_install/linux_install.html
 
 ### Example video data
 Try the algorithm with some toy examples.
